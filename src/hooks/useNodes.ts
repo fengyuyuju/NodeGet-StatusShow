@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BackendPool } from '../api/pool'
+import { BackendPool, type PoolEntry } from '../api/pool'
 import { dynamicSummaryMulti, kvGetMulti, listAgentUuids, staticDataMulti } from '../api/methods'
 import { isOnline } from '../utils/status'
 import type { DynamicSummary, HistorySample, Node, NodeMeta, SiteConfig } from '../types'
@@ -52,6 +52,7 @@ const META_KEYS = [
 ]
 const DYN_INTERVAL_MS = 2000
 const HISTORY_LIMIT = 60
+const RETRY_INTERVAL_MS = 30_000
 
 function parseBool(v: unknown): boolean {
   if (typeof v === 'boolean') return v
@@ -139,92 +140,161 @@ export function useNodes(config: SiteConfig | null) {
     const pool = new BackendPool(config.site_tokens)
     setPool(pool)
     const sourceUuids = new Map<string, string[]>()
+    const failed = new Set<string>()
+    let dynamicInFlight = false
+
+    const setBackendError = (source: string, error: unknown) => {
+      setErrors(prev => {
+        const filtered = prev.filter(e => e.source !== source)
+        return [...filtered, { source, error }]
+      })
+    }
+
+    const clearBackendError = (source: string) => {
+      setErrors(prev => prev.filter(e => e.source !== source))
+    }
+
+    const bootstrapEntry = async (entry: PoolEntry) => {
+      let uuids: string[]
+      try {
+        uuids = (await listAgentUuids(entry.client)) ?? []
+      } catch (error) {
+        failed.add(entry.name)
+        setBackendError(entry.name, error)
+        return
+      }
+
+      const prevUuids = sourceUuids.get(entry.name) ?? []
+      const nextSet = new Set(uuids)
+      const removed = prevUuids.filter(u => !nextSet.has(u))
+      sourceUuids.set(entry.name, uuids)
+
+      setAgents(prev => {
+        const next = new Map(prev)
+        for (const uuid of removed) {
+          const cur = next.get(uuid)
+          if (cur && cur.source === entry.name) next.delete(uuid)
+        }
+        return next
+      })
+
+      if (removed.length) {
+        setLive(prev => {
+          const next = new Map(prev)
+          for (const uuid of removed) next.delete(uuid)
+          return next
+        })
+        setHistory(prev => {
+          const next = new Map(prev)
+          for (const uuid of removed) next.delete(uuid)
+          return next
+        })
+      }
+
+      if (!uuids.length) {
+        failed.delete(entry.name)
+        clearBackendError(entry.name)
+        return
+      }
+
+      const kvItems = uuids.flatMap(u => META_KEYS.map(k => ({ namespace: u, key: k })))
+      const [meta, stat] = await Promise.allSettled([
+        kvGetMulti(entry.client, kvItems),
+        staticDataMulti(entry.client, uuids, STATIC_FIELDS),
+      ])
+
+      const initError =
+        meta.status === 'rejected'
+          ? meta.reason
+          : stat.status === 'rejected'
+            ? stat.reason
+            : null
+
+      if (initError) {
+        failed.add(entry.name)
+        setBackendError(entry.name, initError)
+      } else {
+        failed.delete(entry.name)
+        clearBackendError(entry.name)
+      }
+
+      setAgents(prev => {
+        const next = new Map(prev)
+
+        if (meta.status === 'fulfilled' && meta.value) {
+          const grouped = new Map<string, Record<string, unknown>>()
+          for (const row of meta.value) {
+            if (!row || row.value == null) continue
+            let bucket = grouped.get(row.namespace)
+            if (!bucket) grouped.set(row.namespace, (bucket = {}))
+            bucket[row.key] = row.value
+          }
+          for (const uuid of uuids) {
+            const cur = next.get(uuid) ?? blankAgent(uuid, entry.name)
+            next.set(uuid, { ...cur, meta: parseMeta(grouped.get(uuid) ?? {}) })
+          }
+        }
+
+        if (stat.status === 'fulfilled' && stat.value) {
+          for (const row of stat.value) {
+            if (!row.uuid) continue
+            const cur = next.get(row.uuid)
+            if (!cur || cur.source !== entry.name) continue
+            next.set(row.uuid, { ...cur, static: row })
+          }
+        }
+        return next
+      })
+    }
 
     const bootstrap = async () => {
-      const agentsRes = await pool.fanout(listAgentUuids)
-      setErrors(prev => [...prev, ...agentsRes.errors])
-
-      const seed = new Map<string, Agent>()
-      for (const { source, rows } of agentsRes.ok) {
-        const uuids = rows ?? []
-        sourceUuids.set(source, uuids)
-        for (const uuid of uuids) seed.set(uuid, blankAgent(uuid, source))
-      }
-      setAgents(seed)
-
-      await Promise.all(
-        pool.entries.map(async entry => {
-          const uuids = sourceUuids.get(entry.name) || []
-          if (!uuids.length) return
-
-          const kvItems = uuids.flatMap(u => META_KEYS.map(k => ({ namespace: u, key: k })))
-          const [meta, stat] = await Promise.allSettled([
-            kvGetMulti(entry.client, kvItems),
-            staticDataMulti(entry.client, uuids, STATIC_FIELDS),
-          ])
-
-          setAgents(prev => {
-            const next = new Map(prev)
-
-            if (meta.status === 'fulfilled' && meta.value) {
-              const grouped = new Map<string, Record<string, unknown>>()
-              for (const row of meta.value) {
-                if (!row || row.value == null) continue
-                let bucket = grouped.get(row.namespace)
-                if (!bucket) grouped.set(row.namespace, (bucket = {}))
-                bucket[row.key] = row.value
-              }
-              for (const uuid of uuids) {
-                const cur = next.get(uuid) ?? blankAgent(uuid, entry.name)
-                next.set(uuid, { ...cur, meta: parseMeta(grouped.get(uuid) ?? {}) })
-              }
-            }
-
-            if (stat.status === 'fulfilled' && stat.value) {
-              for (const row of stat.value) {
-                if (!row.uuid) continue
-                const cur = next.get(row.uuid) ?? blankAgent(row.uuid, entry.name)
-                next.set(row.uuid, { ...cur, static: row })
-              }
-            }
-            return next
-          })
-        }),
-      )
-
+      await Promise.allSettled(pool.entries.map(bootstrapEntry))
       await tickDynamic()
       setLoading(false)
     }
 
-    const tickDynamic = async () => {
-      const updates: DynamicSummary[] = []
-      await Promise.allSettled(
-        pool.entries.map(async entry => {
-          const uuids = sourceUuids.get(entry.name) || []
-          if (!uuids.length) return
-          try {
-            const rows = await dynamicSummaryMulti(entry.client, uuids, DYNAMIC_FIELDS)
-            for (const row of rows || []) updates.push(row)
-          } catch {}
-        }),
-      )
-      if (!updates.length) return
+    const retryFailed = async () => {
+      const targets = pool.entries.filter(e => failed.has(e.name))
+      if (!targets.length) return
+      await Promise.allSettled(targets.map(bootstrapEntry))
+      await tickDynamic()
+    }
 
-      setLive(prev => {
-        const next = new Map(prev)
-        for (const row of updates) next.set(row.uuid, row)
-        return next
-      })
-      setHistory(prev => {
-        const next = new Map(prev)
-        for (const row of updates) {
-          const arr = next.get(row.uuid) || []
-          const sample = sampleFrom(row)
-          const dedup = arr.length && arr[arr.length - 1].t === sample.t ? arr : arr.concat(sample)
-          next.set(row.uuid, dedup.slice(-HISTORY_LIMIT))
-        }
-        return next
-      })
+    const tickDynamic = async () => {
+      if (dynamicInFlight) return
+      dynamicInFlight = true
+      const updates: DynamicSummary[] = []
+      try {
+        await Promise.allSettled(
+          pool.entries.map(async entry => {
+            const uuids = sourceUuids.get(entry.name) || []
+            if (!uuids.length) return
+            try {
+              const rows = await dynamicSummaryMulti(entry.client, uuids, DYNAMIC_FIELDS)
+              for (const row of rows || []) updates.push(row)
+            } catch {}
+          }),
+        )
+        if (!updates.length) return
+
+        setLive(prev => {
+          const next = new Map(prev)
+          for (const row of updates) next.set(row.uuid, row)
+          return next
+        })
+        setHistory(prev => {
+          const next = new Map(prev)
+          for (const row of updates) {
+            const arr = next.get(row.uuid) || []
+            const sample = sampleFrom(row)
+            const dedup = arr.length && arr[arr.length - 1].t === sample.t ? arr : arr.concat(sample)
+            next.set(row.uuid, dedup.slice(-HISTORY_LIMIT))
+          }
+          return next
+        })
+      } finally {
+        dynamicInFlight = false
+      }
     }
 
     bootstrap().catch((e: unknown) => {
@@ -239,10 +309,12 @@ export function useNodes(config: SiteConfig | null) {
 
     const dynTimer = setInterval(tickDynamic, DYN_INTERVAL_MS)
     const clockTimer = setInterval(() => setTick(t => t + 1), 5000)
+    const retryTimer = setInterval(retryFailed, RETRY_INTERVAL_MS)
 
     return () => {
       clearInterval(dynTimer)
       clearInterval(clockTimer)
+      clearInterval(retryTimer)
       document.removeEventListener('visibilitychange', onVisible)
       setPool(null)
       pool.close()
