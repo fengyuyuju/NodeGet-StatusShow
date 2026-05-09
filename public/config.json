@@ -4,9 +4,9 @@
   "footer": "Powered by NodeGet",
   "site_tokens": [
     {
-      "name": "master server node 1",
-      "backend_url": "wss://your-backend.example.com",
-      "token": "YOUR_TOKEN_HERE"
+      "name": "LeasewebHK",
+      "backend_url": "wss://nodes.qiyi.ing",
+      "token": "lcP30HY4GJWNfGcV:PFnidZORTRvkNj37y2aFokKdFFmP6hFI"
     }
   ]
 }
