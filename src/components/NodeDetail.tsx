@@ -62,6 +62,7 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
     }
   }, [node, onClose])
 
+  const nodeUuid = node?.uuid
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -72,7 +73,7 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
-  }, [node])
+  }, [nodeUuid])
 
   const { pingData, tcpData, loading: latencyLoading } = useNodeLatency(
     pool,
