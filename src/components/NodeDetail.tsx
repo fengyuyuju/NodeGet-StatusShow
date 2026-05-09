@@ -438,7 +438,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                 type="number"
                 domain={['dataMin', 'dataMax']}
                 scale="time"
-                tickFormatter={t => new Date(t).toLocaleTimeString()}
+                tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 tick={{ fontSize: 11 }}
                 stroke="hsl(var(--muted-foreground))"
               />
@@ -477,7 +477,21 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
       {stats.length > 0 && (
         <div className="mt-3 border-t pt-3">
           <div className="flex items-center px-2 pb-1 text-[11px] text-muted-foreground">
-            <span className="flex-1">来源</span>
+            <span className="flex-1 flex items-center gap-2">
+              来源
+              <button
+                onClick={() => setHidden(new Set())}
+                className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors"
+              >
+                全部显示
+              </button>
+              <button
+                onClick={() => setHidden(new Set(series.map(s => s.name)))}
+                className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors"
+              >
+                全部隐藏
+              </button>
+            </span>
             <span className="w-20 text-right">平均延迟</span>
             <span className="w-16 text-right">抖动</span>
             <span className="w-14 text-right">丢包率</span>
