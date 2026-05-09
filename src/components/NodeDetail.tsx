@@ -46,7 +46,7 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const [stuck, setStuck] = useState(false)
-  const [latencyRange, setLatencyRange] = useState<LatencyRange>('1h')
+  const [latencyRange, setLatencyRange] = useState<LatencyRange>('1d')
 
   useEffect(() => {
     if (!node) return
