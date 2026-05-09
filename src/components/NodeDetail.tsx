@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -383,13 +383,46 @@ interface LatencyBlockProps {
   onRangeChange: (r: LatencyRange) => void
 }
 
+type SortField = 'avg' | 'jitter' | 'lossRate'
+type SortDir = 'asc' | 'desc'
+
 const ms = (v: number) => `${v.toFixed(1)} ms`
 
 function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: LatencyBlockProps) {
   const { data, series } = useMemo(() => buildLatencyChart(rows, type), [rows, type])
-  const stats = useMemo(() => computeLatencyStats(rows, type), [rows, type])
+  const baseStats = useMemo(() => computeLatencyStats(rows, type), [rows, type])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
+  const [sortField, setSortField] = useState<SortField>('avg')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
   const empty = data.length === 0
+
+  const stats = useMemo(() => {
+    const sorted = [...baseStats]
+    sorted.sort((a, b) => {
+      let av: number, bv: number
+      if (sortField === 'avg') {
+        av = a.avg ?? Infinity
+        bv = b.avg ?? Infinity
+      } else if (sortField === 'jitter') {
+        av = a.jitter ?? Infinity
+        bv = b.jitter ?? Infinity
+      } else {
+        av = a.lossRate
+        bv = b.lossRate
+      }
+      return sortDir === 'asc' ? av - bv : bv - av
+    })
+    return sorted
+  }, [baseStats, sortField, sortDir])
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }
 
   const { yDomain, yTicks } = useMemo(() => {
     const visibleKeys = series.filter(s => !hidden.has(s.name)).map(s => s.name)
@@ -530,9 +563,30 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                 全部隐藏
               </button>
             </span>
-            <span className="w-20 text-right">平均延迟</span>
-            <span className="w-16 text-right">抖动</span>
-            <span className="w-14 text-right">丢包率</span>
+            <SortHeader
+              label="平均延迟"
+              field="avg"
+              current={sortField}
+              dir={sortDir}
+              onClick={handleSort}
+              className="w-20"
+            />
+            <SortHeader
+              label="抖动"
+              field="jitter"
+              current={sortField}
+              dir={sortDir}
+              onClick={handleSort}
+              className="w-16"
+            />
+            <SortHeader
+              label="丢包率"
+              field="lossRate"
+              current={sortField}
+              dir={sortDir}
+              onClick={handleSort}
+              className="w-14"
+            />
           </div>
           <div className="space-y-0.5">
             {stats.map(s => (
@@ -594,6 +648,34 @@ function LatencyStatsRow({
   )
 }
 
+interface SortHeaderProps {
+  label: string
+  field: SortField
+  current: SortField
+  dir: SortDir
+  onClick: (field: SortField) => void
+  className?: string
+}
+
+function SortHeader({ label, field, current, dir, onClick, className }: SortHeaderProps) {
+  const active = current === field
+  const Icon = dir === 'desc' ? ArrowDown : ArrowUp
+
+  return (
+    <button
+      onClick={() => onClick(field)}
+      className={cn(
+        'flex items-center justify-end gap-0.5 text-right cursor-pointer select-none hover:text-foreground transition-colors',
+        active && 'text-foreground',
+        className,
+      )}
+    >
+      {active && <Icon className="h-3 w-3" />}
+      <span>{label}</span>
+    </button>
+  )
+}
+
 interface LatencyTooltipProps {
   active?: boolean
   payload?: Array<{ name: string; value: number; dataKey: string }>
@@ -605,7 +687,9 @@ interface LatencyTooltipProps {
 function LatencyTooltip({ active, payload, label, hidden, seriesColors }: LatencyTooltipProps) {
   if (!active || !payload) return null
 
-  const visiblePayload = payload.filter(p => !hidden.has(p.dataKey))
+  const visiblePayload = payload
+    .filter(p => !hidden.has(p.dataKey))
+    .sort((a, b) => a.value - b.value)
   if (visiblePayload.length === 0) return null
 
   return (

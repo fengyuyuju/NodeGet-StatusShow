@@ -1,10 +1,26 @@
 import type { LatencyType, TaskQueryResult } from '../types'
 
-export function generateSpectrumColor(index: number, total: number): string {
-  if (total <= 0) return 'hsl(210, 70%, 55%)'
-  // 避开红色区域，使用 50-280 度色相范围（黄→绿→青→蓝→紫）
-  const hue = 50 + (index / total) * 230
-  return `hsl(${hue.toFixed(0)}, 70%, 55%)`
+const DISTINCT_COLORS = [
+  '#3b82f6', // 蓝
+  '#f97316', // 橙
+  '#22c55e', // 绿
+  '#a855f7', // 紫
+  '#06b6d4', // 青
+  '#ef4444', // 红
+  '#eab308', // 黄
+  '#ec4899', // 粉
+  '#14b8a6', // 青绿
+  '#8b5cf6', // 蓝紫
+  '#f59e0b', // 琥珀
+  '#10b981', // 翠绿
+  '#6366f1', // 靛蓝
+  '#84cc16', // 酸橙
+  '#d946ef', // 品红
+  '#0ea5e9', // 天蓝
+]
+
+export function generateSpectrumColor(index: number, _total: number): string {
+  return DISTINCT_COLORS[index % DISTINCT_COLORS.length]
 }
 
 function normalizeTs(ts: number) {
