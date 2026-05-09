@@ -391,7 +391,38 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   const empty = data.length === 0
 
-  const visibleSeries = series.filter(s => !hidden.has(s.name))
+  const { yDomain, yTicks } = useMemo(() => {
+    const visibleKeys = series.filter(s => !hidden.has(s.name)).map(s => s.name)
+    if (visibleKeys.length === 0) return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100] }
+    let min = Infinity
+    let max = -Infinity
+    for (const d of data) {
+      for (const k of visibleKeys) {
+        const v = d[k]
+        if (typeof v === 'number' && Number.isFinite(v)) {
+          if (v < min) min = v
+          if (v > max) max = v
+        }
+      }
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100] }
+    }
+    const range = max - min || 1
+    const rawStep = range / 4
+    const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
+    const normalized = rawStep / magnitude
+    const niceStep = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10
+    const step = niceStep * magnitude
+    const niceMin = Math.floor(min / step) * step
+    const niceMax = Math.ceil(max / step) * step
+    const ticks: number[] = []
+    for (let t = niceMin; t <= niceMax + step / 2; t += step) {
+      ticks.push(Math.round(t))
+    }
+    return { yDomain: [Math.max(0, niceMin), niceMax] as [number, number], yTicks: ticks }
+  }, [data, series, hidden])
+
   const rangeLabel = LATENCY_RANGES.find(r => r.key === range)?.label ?? range
 
   const toggle = (name: string) =>
@@ -442,25 +473,31 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                 tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 tick={{ fontSize: 11 }}
                 stroke="hsl(var(--muted-foreground))"
+                minTickGap={60}
               />
               <YAxis
-                tickFormatter={v => `${v}ms`}
+                tickFormatter={v => `${Math.round(v)}ms`}
                 tick={{ fontSize: 11 }}
                 stroke="hsl(var(--muted-foreground))"
                 width={48}
-                domain={['auto', 'auto']}
+                domain={yDomain}
+                ticks={yTicks}
+                allowDataOverflow
               />
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                labelFormatter={t => new Date(Number(t)).toLocaleTimeString()}
-                formatter={(v: number) => ms(Number(v))}
+                content={
+                  <LatencyTooltip
+                    hidden={hidden}
+                    seriesColors={Object.fromEntries(series.map(s => [s.name, s.color]))}
+                  />
+                }
               />
-              {visibleSeries.map(s => (
+              {series.map(s => (
                 <Line
                   key={s.name}
                   type="monotone"
                   dataKey={s.name}
-                  stroke={s.color}
+                  stroke={hidden.has(s.name) ? 'transparent' : s.color}
                   strokeWidth={1.5}
                   dot={false}
                   connectNulls
@@ -553,6 +590,47 @@ function LatencyStatsRow({
       >
         {lossRate.toFixed(1)}%
       </span>
+    </div>
+  )
+}
+
+interface LatencyTooltipProps {
+  active?: boolean
+  payload?: Array<{ name: string; value: number; dataKey: string }>
+  label?: number
+  hidden: Set<string>
+  seriesColors: Record<string, string>
+}
+
+function LatencyTooltip({ active, payload, label, hidden, seriesColors }: LatencyTooltipProps) {
+  if (!active || !payload) return null
+
+  const visiblePayload = payload.filter(p => !hidden.has(p.dataKey))
+  if (visiblePayload.length === 0) return null
+
+  return (
+    <div
+      style={{
+        background: 'hsl(var(--popover))',
+        border: '1px solid hsl(var(--border))',
+        borderRadius: 6,
+        fontSize: 11,
+        padding: '8px 10px',
+      }}
+    >
+      <div className="text-muted-foreground mb-1">
+        {label != null ? new Date(label).toLocaleTimeString() : ''}
+      </div>
+      {visiblePayload.map(p => (
+        <div key={p.dataKey} className="flex items-center gap-2">
+          <span
+            className="inline-block w-2 h-2 rounded-full shrink-0"
+            style={{ background: seriesColors[p.dataKey] }}
+          />
+          <span className="flex-1 truncate">{p.dataKey}</span>
+          <span className="font-mono tabular-nums">{ms(p.value)}</span>
+        </div>
+      ))}
     </div>
   )
 }

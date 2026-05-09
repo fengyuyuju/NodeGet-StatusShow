@@ -2,7 +2,8 @@ import type { LatencyType, TaskQueryResult } from '../types'
 
 export function generateSpectrumColor(index: number, total: number): string {
   if (total <= 0) return 'hsl(210, 70%, 55%)'
-  const hue = (index / total) * 360
+  // 避开红色区域，使用 50-280 度色相范围（黄→绿→青→蓝→紫）
+  const hue = 50 + (index / total) * 230
   return `hsl(${hue.toFixed(0)}, 70%, 55%)`
 }
 
