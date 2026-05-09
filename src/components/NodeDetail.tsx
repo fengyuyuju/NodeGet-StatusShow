@@ -392,6 +392,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   const { data, series } = useMemo(() => buildLatencyChart(rows, type), [rows, type])
   const baseStats = useMemo(() => computeLatencyStats(rows, type), [rows, type])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
+  const [hovered, setHovered] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('avg')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const empty = data.length === 0
@@ -425,7 +426,9 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   }
 
   const { yDomain, yTicks } = useMemo(() => {
-    const visibleKeys = series.filter(s => !hidden.has(s.name)).map(s => s.name)
+    const visibleKeys = hovered
+      ? [hovered]
+      : series.filter(s => !hidden.has(s.name)).map(s => s.name)
     if (visibleKeys.length === 0) return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100] }
     let min = Infinity
     let max = -Infinity
@@ -454,7 +457,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
       ticks.push(Math.round(t))
     }
     return { yDomain: [Math.max(0, niceMin), niceMax] as [number, number], yTicks: ticks }
-  }, [data, series, hidden])
+  }, [data, series, hidden, hovered])
 
   const rangeLabel = LATENCY_RANGES.find(r => r.key === range)?.label ?? range
 
@@ -525,18 +528,23 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                   />
                 }
               />
-              {series.map(s => (
-                <Line
-                  key={s.name}
-                  type="monotone"
-                  dataKey={s.name}
-                  stroke={hidden.has(s.name) ? 'transparent' : s.color}
-                  strokeWidth={1.5}
-                  dot={false}
-                  connectNulls
-                  isAnimationActive={false}
-                />
-              ))}
+              {series.map(s => {
+                const isVisible = hovered
+                  ? s.name === hovered
+                  : !hidden.has(s.name)
+                return (
+                  <Line
+                    key={s.name}
+                    type="monotone"
+                    dataKey={s.name}
+                    stroke={isVisible ? s.color : 'transparent'}
+                    strokeWidth={1.5}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                )
+              })}
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -588,13 +596,14 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
               className="w-14"
             />
           </div>
-          <div className="space-y-0.5">
+          <div className="space-y-0.5" onMouseLeave={() => setHovered(null)}>
             {stats.map(s => (
               <LatencyStatsRow
                 key={s.name}
                 stat={s}
                 hidden={hidden.has(s.name)}
                 onToggle={() => toggle(s.name)}
+                onHover={() => setHovered(s.name)}
               />
             ))}
           </div>
@@ -608,16 +617,19 @@ function LatencyStatsRow({
   stat,
   hidden,
   onToggle,
+  onHover,
 }: {
   stat: LatencyStats
   hidden: boolean
   onToggle: () => void
+  onHover: () => void
 }) {
   const { name, color, avg, jitter, lossRate } = stat
 
   return (
     <div
       onClick={onToggle}
+      onMouseEnter={onHover}
       className={cn(
         'flex items-center px-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity hover:bg-muted/60',
         hidden && 'opacity-35',
