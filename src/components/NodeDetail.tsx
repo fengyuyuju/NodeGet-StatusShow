@@ -24,7 +24,7 @@ import {
   computeLatencyStats,
   type LatencyStats,
 } from '../utils/latency'
-import { useNodeLatency } from '../hooks/useNodeLatency'
+import { useNodeLatency, LATENCY_RANGES, type LatencyRange } from '../hooks/useNodeLatency'
 import type { BackendPool } from '../api/pool'
 import type { HistorySample, LatencyType, Node, NodeMeta, TaskQueryResult } from '../types'
 
@@ -46,6 +46,7 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const [stuck, setStuck] = useState(false)
+  const [latencyRange, setLatencyRange] = useState<LatencyRange>('1h')
 
   useEffect(() => {
     if (!node) return
@@ -77,6 +78,7 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
     pool,
     node?.source ?? null,
     node?.uuid ?? null,
+    latencyRange,
   )
 
   if (!node) return null
@@ -205,8 +207,17 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
           rows={tcpData}
           type="tcp_ping"
           loading={latencyLoading}
+          range={latencyRange}
+          onRangeChange={setLatencyRange}
         />
-        <LatencyBlock title="Ping" rows={pingData} type="ping" loading={latencyLoading} />
+        <LatencyBlock
+          title="Ping"
+          rows={pingData}
+          type="ping"
+          loading={latencyLoading}
+          range={latencyRange}
+          onRangeChange={setLatencyRange}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <Section title="系统">
@@ -367,17 +378,20 @@ interface LatencyBlockProps {
   rows: TaskQueryResult[]
   type: LatencyType
   loading: boolean
+  range: LatencyRange
+  onRangeChange: (r: LatencyRange) => void
 }
 
 const ms = (v: number) => `${v.toFixed(1)} ms`
 
-function LatencyBlock({ title, rows, type, loading }: LatencyBlockProps) {
+function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: LatencyBlockProps) {
   const { data, series } = useMemo(() => buildLatencyChart(rows, type), [rows, type])
   const stats = useMemo(() => computeLatencyStats(rows, type), [rows, type])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   const empty = data.length === 0
 
   const visibleSeries = series.filter(s => !hidden.has(s.name))
+  const rangeLabel = LATENCY_RANGES.find(r => r.key === range)?.label ?? range
 
   const toggle = (name: string) =>
     setHidden(prev => {
@@ -388,7 +402,28 @@ function LatencyBlock({ title, rows, type, loading }: LatencyBlockProps) {
     })
 
   return (
-    <Section title={`${title} · 近 1 小时`}>
+    <Card className="p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+          {title} · 近 {rangeLabel}
+        </div>
+        <div className="flex gap-1">
+          {LATENCY_RANGES.map(r => (
+            <button
+              key={r.key}
+              onClick={() => onRangeChange(r.key)}
+              className={cn(
+                'px-2 py-0.5 text-[11px] rounded transition-colors',
+                range === r.key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
+              )}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="relative h-60">
         {empty && (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
@@ -459,7 +494,7 @@ function LatencyBlock({ title, rows, type, loading }: LatencyBlockProps) {
           </div>
         </div>
       )}
-    </Section>
+    </Card>
   )
 }
 

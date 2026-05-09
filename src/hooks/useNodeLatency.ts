@@ -3,7 +3,16 @@ import { taskQuery } from '../api/methods'
 import type { BackendPool } from '../api/pool'
 import type { TaskQueryResult } from '../types'
 
-const WINDOW_MS = 60 * 60 * 1000
+export type LatencyRange = '1h' | '6h' | '12h' | '1d' | '7d'
+
+export const LATENCY_RANGES: { key: LatencyRange; label: string; ms: number }[] = [
+  { key: '1h', label: '1小时', ms: 60 * 60 * 1000 },
+  { key: '6h', label: '6小时', ms: 6 * 60 * 60 * 1000 },
+  { key: '12h', label: '12小时', ms: 12 * 60 * 60 * 1000 },
+  { key: '1d', label: '1天', ms: 24 * 60 * 60 * 1000 },
+  { key: '7d', label: '7天', ms: 7 * 24 * 60 * 60 * 1000 },
+]
+
 const REFRESH_MS = 10_000
 const QUERY_TIMEOUT_MS = 20_000
 
@@ -17,6 +26,7 @@ export function useNodeLatency(
   pool: BackendPool | null,
   source: string | null,
   uuid: string | null,
+  range: LatencyRange = '1h',
 ) {
   const [pingData, setPingData] = useState<TaskQueryResult[]>([])
   const [tcpData, setTcpData] = useState<TaskQueryResult[]>([])
@@ -30,11 +40,13 @@ export function useNodeLatency(
     const entry = pool.entries.find(e => e.name === source)
     if (!entry) return
 
+    const windowMs = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
+
     let cancelled = false
 
     const fetchOnce = async () => {
       const now = Date.now()
-      const window: [number, number] = [now - WINDOW_MS, now]
+      const window: [number, number] = [now - windowMs, now]
       setLoading(true)
 
       const [ping, tcp] = await Promise.allSettled([
@@ -62,7 +74,7 @@ export function useNodeLatency(
       cancelled = true
       clearInterval(timer)
     }
-  }, [pool, source, uuid])
+  }, [pool, source, uuid, range])
 
   return { pingData, tcpData, loading }
 }
