@@ -1,20 +1,9 @@
 import type { LatencyType, TaskQueryResult } from '../types'
 
-const COLORS = [
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#06b6d4',
-  '#ec4899',
-  '#14b8a6',
-]
-
-export function latencyColor(name: string) {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
-  return COLORS[h % COLORS.length]
+export function generateSpectrumColor(index: number, total: number): string {
+  if (total <= 0) return 'hsl(210, 70%, 55%)'
+  const hue = (index / total) * 360
+  return `hsl(${hue.toFixed(0)}, 70%, 55%)`
 }
 
 function normalizeTs(ts: number) {
@@ -56,7 +45,11 @@ function forwardFill(data: ChartPoint[], names: string[]) {
 
 export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
   const names = seriesNames(rows)
-  const series: ChartSeries[] = names.map(name => ({ name, color: latencyColor(name) }))
+  const total = names.length
+  const series: ChartSeries[] = names.map((name, i) => ({
+    name,
+    color: generateSpectrumColor(i, total),
+  }))
   const byTs = new Map<number, ChartPoint>()
 
   for (const r of rows) {
@@ -84,7 +77,9 @@ export interface LatencyStats {
 }
 
 export function computeLatencyStats(rows: TaskQueryResult[], type: LatencyType): LatencyStats[] {
-  const stats = seriesNames(rows).map<LatencyStats>(name => {
+  const names = seriesNames(rows)
+  const total = names.length
+  const stats = names.map<LatencyStats>((name, i) => {
     const list = rows.filter(r => (r.cron_source || '未知') === name)
     const vals: number[] = []
     for (const r of list) {
@@ -92,7 +87,7 @@ export function computeLatencyStats(rows: TaskQueryResult[], type: LatencyType):
       if (v != null) vals.push(v)
     }
 
-    const color = latencyColor(name)
+    const color = generateSpectrumColor(i, total)
     const lossRate = list.length ? ((list.length - vals.length) / list.length) * 100 : 0
     if (!vals.length) return { name, color, avg: null, jitter: null, lossRate }
 
