@@ -112,32 +112,49 @@ export class RpcClient {
     params: Record<string, unknown> = {},
     timeout = CALL_TIMEOUT_MS,
   ): Promise<T> {
-    await this.opened
-    const id = nextId()
-    const payload = JSON.stringify({
-      jsonrpc: '2.0',
-      method,
-      params: { token: this.token, ...params },
-      id,
-    })
-    const queued = this.ws?.readyState !== WebSocket.OPEN
-    log(this.name, `→ ${method} ${queued ? '(queued)' : ''} ${payload.length}B`)
-
     return new Promise<T>((resolve, reject) => {
+      const id = nextId()
+      let settled = false
+
       const timer = setTimeout(() => {
+        if (settled) return
+        settled = true
         this.pending.delete(id)
         warn(this.name, `× ${method} timeout ${timeout}ms`)
         reject(new Error(`${method} 超时`))
       }, timeout)
+
       this.pending.set(id, {
         method,
         sentAt: performance.now(),
-        resolve: resolve as (v: unknown) => void,
-        reject,
+        resolve: v => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          resolve(v as T)
+        },
+        reject: e => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          reject(e)
+        },
         timer,
       })
-      if (queued) this.outbox.push(payload)
-      else this.ws!.send(payload)
+
+      this.opened.then(() => {
+        if (settled) return
+        const payload = JSON.stringify({
+          jsonrpc: '2.0',
+          method,
+          params: { token: this.token, ...params },
+          id,
+        })
+        const queued = this.ws?.readyState !== WebSocket.OPEN
+        log(this.name, `→ ${method} ${queued ? '(queued)' : ''} ${payload.length}B`)
+        if (queued) this.outbox.push(payload)
+        else this.ws!.send(payload)
+      })
     })
   }
 
