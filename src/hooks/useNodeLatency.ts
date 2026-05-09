@@ -43,29 +43,36 @@ export function useNodeLatency(
     const windowMs = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
 
     let cancelled = false
+    let inFlight = false
 
     const fetchOnce = async () => {
+      if (inFlight) return
+      inFlight = true
       const now = Date.now()
       const window: [number, number] = [now - windowMs, now]
       setLoading(true)
 
-      const [ping, tcp] = await Promise.allSettled([
-        taskQuery(
-          entry.client,
-          [{ uuid }, { timestamp_from_to: window }, { type: 'ping' }],
-          QUERY_TIMEOUT_MS,
-        ),
-        taskQuery(
-          entry.client,
-          [{ uuid }, { timestamp_from_to: window }, { type: 'tcp_ping' }],
-          QUERY_TIMEOUT_MS,
-        ),
-      ])
+      try {
+        const [ping, tcp] = await Promise.allSettled([
+          taskQuery(
+            entry.client,
+            [{ uuid }, { timestamp_from_to: window }, { type: 'ping' }],
+            QUERY_TIMEOUT_MS,
+          ),
+          taskQuery(
+            entry.client,
+            [{ uuid }, { timestamp_from_to: window }, { type: 'tcp_ping' }],
+            QUERY_TIMEOUT_MS,
+          ),
+        ])
 
-      if (cancelled) return
-      if (ping.status === 'fulfilled') setPingData(clean(ping.value))
-      if (tcp.status === 'fulfilled') setTcpData(clean(tcp.value))
-      setLoading(false)
+        if (cancelled) return
+        if (ping.status === 'fulfilled') setPingData(clean(ping.value))
+        if (tcp.status === 'fulfilled') setTcpData(clean(tcp.value))
+      } finally {
+        inFlight = false
+        if (!cancelled) setLoading(false)
+      }
     }
 
     fetchOnce()

@@ -53,6 +53,16 @@ const META_KEYS = [
 const DYN_INTERVAL_MS = 2000
 const HISTORY_LIMIT = 60
 
+function parseBool(v: unknown): boolean {
+  if (typeof v === 'boolean') return v
+  if (typeof v === 'number') return v !== 0
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase()
+    return s === 'true' || s === '1' || s === 'yes'
+  }
+  return false
+}
+
 function emptyMeta(): NodeMeta {
   return {
     name: '',
@@ -84,7 +94,7 @@ function parseMeta(raw: Record<string, unknown>): NodeMeta {
     name: raw.metadata_name ? String(raw.metadata_name) : '',
     region: raw.metadata_region ? String(raw.metadata_region) : '',
     tags: Array.isArray(raw.metadata_tags) ? raw.metadata_tags.filter(Boolean) : [],
-    hidden: Boolean(raw.metadata_hidden),
+    hidden: parseBool(raw.metadata_hidden),
     virtualization: raw.metadata_virtualization ? String(raw.metadata_virtualization) : '',
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,

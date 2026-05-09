@@ -29,30 +29,25 @@ export class RpcClient {
   private pending = new Map<string, Pending>()
   private outbox: string[] = []
   private closed = false
-  opened: Promise<void>
+  private openedResolve: (() => void) | null = null
+  opened!: Promise<void>
 
   constructor(url: string, token: string, name?: string) {
     this.url = url
     this.token = token
     this.name = name || url
 
-    this.opened = new Promise<void>((resolve, reject) => {
-      let done = false
-      const ok = () => {
-        if (done) return
-        done = true
-        resolve()
-      }
-      const fail = (msg: string) => {
-        if (done) return
-        done = true
-        reject(new Error(msg))
-      }
-      this.connect(ok, fail)
+    this.resetOpened()
+    this.connect()
+  }
+
+  private resetOpened() {
+    this.opened = new Promise<void>(resolve => {
+      this.openedResolve = resolve
     })
   }
 
-  private connect(ok: () => void, fail: (msg: string) => void) {
+  private connect() {
     if (this.closed) return
     const t0 = performance.now()
     log(this.name, 'connecting →', this.url)
@@ -63,15 +58,16 @@ export class RpcClient {
 
     const timer = setTimeout(() => {
       if (opened) return
+      warn(this.name, `connect timeout after ${CONNECT_TIMEOUT_MS}ms`)
       ws.close()
-      fail(`连接 ${this.url} 超时`)
     }, CONNECT_TIMEOUT_MS)
 
     ws.onopen = () => {
       opened = true
       clearTimeout(timer)
       log(this.name, `open in ${(performance.now() - t0).toFixed(0)}ms (flush ${this.outbox.length})`)
-      ok()
+      this.openedResolve?.()
+      this.openedResolve = null
       for (const m of this.outbox) ws.send(m)
       this.outbox = []
     }
@@ -101,11 +97,11 @@ export class RpcClient {
       this.ws = null
       if (!opened) {
         warn(this.name, `close before open code=${ev.code}`)
-        fail(`无法连接 ${this.url}`)
       } else {
         log(this.name, `close code=${ev.code} pending=${this.pending.size}`)
+        if (!this.openedResolve && !this.closed) this.resetOpened()
       }
-      if (!this.closed) setTimeout(() => this.connect(ok, fail), RECONNECT_DELAY_MS)
+      if (!this.closed) setTimeout(() => this.connect(), RECONNECT_DELAY_MS)
     }
 
     ws.onerror = () => warn(this.name, 'ws error')

@@ -166,10 +166,13 @@ export function WorldMap({ nodes, onOpen }: Props) {
     liveRef.current = { byCountry, onOpen }
   })
 
-  const option = useMemo(() => buildOption(byCountry), [dataSig])
+  const option = useMemo(
+    () => (ready ? buildOption(byCountry) : null),
+    [dataSig, ready],
+  )
 
   useEffect(() => {
-    if (!ready || !wrapRef.current) return
+    if (!ready || !wrapRef.current || !option) return
     if (!chartRef.current) {
       chartRef.current = echarts.init(wrapRef.current)
       chartRef.current.on('click', (p: any) => {
