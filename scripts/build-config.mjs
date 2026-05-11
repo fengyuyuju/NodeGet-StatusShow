@@ -1,9 +1,10 @@
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const out = resolve(root, 'public/config.json')
+const oldConfig = JSON.parse(readFileSync(out, 'utf-8'))
 
 function parseSite(raw) {
   const out = {}
@@ -35,9 +36,13 @@ if (!tokens.length) {
 }
 
 const config = {
-  site_name: process.env.SITE_NAME || 'NodeGet Status',
-  site_logo: process.env.SITE_LOGO || '',
-  footer: process.env.SITE_FOOTER || 'Powered by NodeGet',
+  ...oldConfig,
+  theme_config:{
+    ...oldConfig.theme_config,
+    site_name: process.env.SITE_NAME || 'NodeGet Status',
+    site_logo: process.env.SITE_LOGO || '',
+    footer: process.env.SITE_FOOTER || 'Powered by NodeGet',
+  },
   site_tokens: tokens,
 }
 

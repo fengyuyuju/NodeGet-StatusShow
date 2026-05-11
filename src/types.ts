@@ -89,10 +89,23 @@ export interface Node {
 }
 
 export interface SiteConfig {
-  site_name?: string
-  site_logo?: string
-  footer?: string
-  site_tokens: { name: string; backend_url: string; token: string }[]
+  "name": string
+  "description":string
+  "author"?: string
+  "repository"?: string
+  "dist_page"?: string;
+  "theme_config":{
+    site_name?: string
+    site_logo?: string
+    footer?: string
+  },
+  site_tokens: { 
+    name: string; 
+    backend_url: string; 
+    token: string 
+  }[]
+  "version": string
+  "license"?: string
 }
 
 export interface TaskQueryResult {

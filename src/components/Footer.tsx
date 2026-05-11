@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { parseGitRepo } from "../utils/git"
 
-const REPO = 'https://github.com/NodeSeekDev/NodeGet-StatusShow'
-const PKG_URL = 'https://raw.githubusercontent.com/NodeSeekDev/NodeGet-StatusShow/main/package.json'
 
-export function Footer({ text }: { text?: string }) {
+export function Footer({ text, repo, dist_page}: { text?: string, repo?:string, dist_page?:string}) {
   const [latest, setLatest] = useState<string | null>(null)
+
+  const git = parseGitRepo(repo)
+  const PKG_URL = `https://raw.githubusercontent.com/${git.user}/${git.repo}/main/package.json`
 
   useEffect(() => {
     fetch(PKG_URL)
@@ -14,18 +16,20 @@ export function Footer({ text }: { text?: string }) {
   }, [])
 
   const outdated = latest != null && latest !== __APP_VERSION__
+  const laststDist = dist_page ? `${dist_page}/NodeGet-StatusShow-v${latest}.zip` : repo + '/releases'
 
   return (
     <footer className="border-t">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex justify-end gap-4 text-xs text-muted-foreground">
-        <a href={REPO} target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">
+        <a href={repo} target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">
           {text || 'Powered by NodeGet'}
         </a>
         <span>
-          v{__APP_VERSION__}
+          <a href={`/NodeGet-StatusShow-v${__APP_VERSION__}.zip`} 
+          target="_blank" rel="noreferrer" className="ml-1">v{__APP_VERSION__}</a>
           {outdated && (
-            <a href={`${REPO}/releases`} target="_blank" rel="noreferrer" className="ml-1 text-destructive">
-              (Need Update)
+            <a href={laststDist} target="_blank" rel="noreferrer" className="ml-2 text-destructive">
+              Update to v{latest}
             </a>
           )}
         </span>
