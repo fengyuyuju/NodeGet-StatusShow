@@ -383,7 +383,7 @@ interface LatencyBlockProps {
   onRangeChange: (r: LatencyRange) => void
 }
 
-type SortField = 'avg' | 'jitter' | 'lossRate'
+type SortField = 'avg' | 'p95' | 'jitter' | 'lossRate'
 type SortDir = 'asc' | 'desc'
 
 const ms = (v: number) => `${v.toFixed(1)} ms`
@@ -404,6 +404,9 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
       if (sortField === 'avg') {
         av = a.avg ?? Infinity
         bv = b.avg ?? Infinity
+      } else if (sortField === 'p95') {
+        av = a.p95 ?? Infinity
+        bv = b.p95 ?? Infinity
       } else if (sortField === 'jitter') {
         av = a.jitter ?? Infinity
         bv = b.jitter ?? Infinity
@@ -580,6 +583,14 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
               className="w-20"
             />
             <SortHeader
+              label="P95"
+              field="p95"
+              current={sortField}
+              dir={sortDir}
+              onClick={handleSort}
+              className="w-20"
+            />
+            <SortHeader
               label="抖动"
               field="jitter"
               current={sortField}
@@ -624,7 +635,7 @@ function LatencyStatsRow({
   onToggle: () => void
   onHover: () => void
 }) {
-  const { name, color, avg, jitter, lossRate } = stat
+  const { name, color, avg, p95, jitter, lossRate } = stat
 
   return (
     <div
@@ -644,6 +655,9 @@ function LatencyStatsRow({
       </span>
       <span className="w-20 text-right tabular-nums font-mono">
         {avg != null ? ms(avg) : '—'}
+      </span>
+      <span className="w-20 text-right tabular-nums font-mono">
+        {p95 != null ? ms(p95) : '—'}
       </span>
       <span className="w-16 text-right tabular-nums font-mono">
         {jitter != null ? ms(jitter) : '—'}

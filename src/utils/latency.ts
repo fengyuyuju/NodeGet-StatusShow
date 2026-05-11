@@ -89,8 +89,19 @@ export interface LatencyStats {
   name: string
   color: string
   avg: number | null
+  p95: number | null
   jitter: number | null
   lossRate: number
+}
+
+function percentile(sortedAsc: number[], p: number): number {
+  const n = sortedAsc.length
+  if (n === 1) return sortedAsc[0]
+  const rank = p * (n - 1)
+  const lo = Math.floor(rank)
+  const hi = Math.ceil(rank)
+  if (lo === hi) return sortedAsc[lo]
+  return sortedAsc[lo] + (rank - lo) * (sortedAsc[hi] - sortedAsc[lo])
 }
 
 export function computeLatencyStats(rows: TaskQueryResult[], type: LatencyType): LatencyStats[] {
@@ -106,15 +117,16 @@ export function computeLatencyStats(rows: TaskQueryResult[], type: LatencyType):
 
     const color = generateSpectrumColor(i, total)
     const lossRate = list.length ? ((list.length - vals.length) / list.length) * 100 : 0
-    if (!vals.length) return { name, color, avg: null, jitter: null, lossRate }
+    if (!vals.length) return { name, color, avg: null, p95: null, jitter: null, lossRate }
 
     const avg = vals.reduce((s, v) => s + v, 0) / vals.length
     const jitter =
       vals.length >= 2
         ? vals.slice(1).reduce((s, v, i) => s + Math.abs(v - vals[i]), 0) / (vals.length - 1)
         : null
+    const p95 = percentile([...vals].sort((a, b) => a - b), 0.95)
 
-    return { name, color, avg, jitter, lossRate }
+    return { name, color, avg, p95, jitter, lossRate }
   })
 
   return stats.sort((a, b) => {
