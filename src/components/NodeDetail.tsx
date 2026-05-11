@@ -406,6 +406,19 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     return [...set].sort((a, b) => a - b).map(t => ({ t, _ref: 0 }))
   }, [series])
 
+  const xTicks = useMemo(() => {
+    const times = chartData.map(d => d.t)
+    if (times.length === 0) return []
+    const min = times[0]
+    const max = times[times.length - 1]
+    if (min === max) return [min]
+    const count = 6
+    const step = (max - min) / (count - 1)
+    const ticks: number[] = []
+    for (let i = 0; i < count; i++) ticks.push(min + step * i)
+    return ticks
+  }, [chartData])
+
   const stats = useMemo(() => {
     const sorted = [...baseStats]
     sorted.sort((a, b) => {
@@ -512,7 +525,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
         )}
         {!empty && (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <LineChart data={chartData} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
               <XAxis
                 dataKey="t"
                 type="number"
@@ -521,8 +534,8 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                 tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 tick={{ fontSize: 11 }}
                 stroke="hsl(var(--muted-foreground))"
-                minTickGap={60}
-                allowDuplicatedCategory={false}
+                ticks={xTicks}
+                interval={0}
               />
               <YAxis
                 tickFormatter={v => `${Math.round(v)}ms`}
