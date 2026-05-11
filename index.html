@@ -7,11 +7,19 @@
     <link rel="icon" type="image/png" href="./logo.png" />
     <title>NodeGet - StatusShow</title>
     <script>
+      var pref = 'system'
       try {
-        var t = localStorage.getItem('nodeget.theme')
-        if (t !== 'light') {
-          document.documentElement.classList.add('dark')
-        }
+        var stored = localStorage.getItem('nodeget.theme')
+        if (stored === 'light' || stored === 'dark' || stored === 'system') pref = stored
+      } catch (_) {}
+      try {
+        var sysDark =
+          typeof window.matchMedia !== 'function' ||
+          window.matchMedia('(prefers-color-scheme: dark)').matches
+        document.documentElement.classList.toggle(
+          'dark',
+          pref === 'dark' || (pref === 'system' && sysDark),
+        )
       } catch (_) {}
     </script>
     <link rel="stylesheet" href="./custom.css" />

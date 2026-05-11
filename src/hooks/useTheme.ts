@@ -1,22 +1,49 @@
 import { useEffect, useState } from 'react'
 
-type Theme = 'light' | 'dark'
+type ThemePreference = 'light' | 'dark' | 'system'
+type ResolvedTheme = 'light' | 'dark'
 
 const KEY = 'nodeget.theme'
+const QUERY = '(prefers-color-scheme: dark)'
 
-function initial(): Theme {
-  const stored = localStorage.getItem(KEY)
-  if (stored === 'light' || stored === 'dark') return stored
-  return 'dark'
+function initialPreference(): ThemePreference {
+  try {
+    const stored = localStorage.getItem(KEY)
+    if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+  } catch {}
+  return 'system'
+}
+
+function getSystemTheme(): ResolvedTheme {
+  if (typeof window.matchMedia !== 'function') return 'dark'
+  return window.matchMedia(QUERY).matches ? 'dark' : 'light'
 }
 
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(initial)
+  const [preference, setPreference] = useState<ThemePreference>(initialPreference)
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme)
+
+  const resolvedTheme: ResolvedTheme = preference === 'system' ? systemTheme : preference
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-    localStorage.setItem(KEY, theme)
-  }, [theme])
+    if (typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia(QUERY)
+    const onChange = (event: MediaQueryListEvent) => {
+      setSystemTheme(event.matches ? 'dark' : 'light')
+    }
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
 
-  return { theme, toggle: () => setTheme(t => (t === 'dark' ? 'light' : 'dark')) }
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', resolvedTheme === 'dark')
+  }, [resolvedTheme])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(KEY, preference)
+    } catch {}
+  }, [preference])
+
+  return { preference, resolvedTheme, setPreference }
 }

@@ -1,19 +1,28 @@
-import { Moon, Sun } from 'lucide-react'
+import { Monitor, Moon, Sun } from 'lucide-react'
 import { Button } from './ui/button'
 import { useTheme } from '../hooks/useTheme'
 
+const ORDER = ['light', 'dark', 'system'] as const
+const META = {
+  light: { icon: Sun, label: '浅色模式' },
+  dark: { icon: Moon, label: '深色模式' },
+  system: { icon: Monitor, label: '跟随系统' },
+} as const
+
 export function ThemeToggle() {
-  const { theme, toggle } = useTheme()
-  const dark = theme === 'dark'
+  const { preference, setPreference } = useTheme()
+  const { icon: Icon, label } = META[preference]
+  const next = ORDER[(ORDER.indexOf(preference) + 1) % ORDER.length]
+
   return (
     <Button
       variant="outline"
       size="icon"
-      onClick={toggle}
-      aria-label={dark ? '切换到浅色' : '切换到深色'}
-      title={dark ? '浅色模式' : '深色模式'}
+      onClick={() => setPreference(next)}
+      aria-label={`切换到${META[next].label}`}
+      title={label}
     >
-      {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      <Icon className="h-4 w-4" />
     </Button>
   )
 }
