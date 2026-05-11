@@ -6,7 +6,6 @@ const DISTINCT_COLORS = [
   '#22c55e', // 绿
   '#a855f7', // 紫
   '#06b6d4', // 青
-  '#ef4444', // 红
   '#eab308', // 黄
   '#ec4899', // 粉
   '#14b8a6', // 青绿
@@ -18,6 +17,8 @@ const DISTINCT_COLORS = [
   '#d946ef', // 品红
   '#0ea5e9', // 天蓝
 ]
+
+export const TIMEOUT_COLOR = '#ef4444'
 
 export function generateSpectrumColor(index: number, _total: number): string {
   return DISTINCT_COLORS[index % DISTINCT_COLORS.length]
@@ -38,51 +39,95 @@ function seriesNames(rows: TaskQueryResult[]) {
   return [...set].sort((a, b) => a.localeCompare(b))
 }
 
-export interface ChartPoint {
+export interface ChartSeriesPoint {
   t: number
-  [series: string]: number | null
+  value: number | null
 }
 
 export interface ChartSeries {
   name: string
   color: string
+  points: ChartSeriesPoint[]
+  normalLine: ChartSeriesPoint[]
+  timeoutLine: ChartSeriesPoint[]
 }
 
-function forwardFill(data: ChartPoint[], names: string[]) {
-  const last: Record<string, number | null> = {}
-  for (const n of names) last[n] = null
-  for (const pt of data) {
-    for (const n of names) {
-      const v = pt[n]
-      if (v == null) pt[n] = last[n]
-      else last[n] = v
+interface Segment {
+  type: 'normal' | 'timeout'
+  a: ChartSeriesPoint
+  b: ChartSeriesPoint
+}
+
+function buildLineData(segs: Segment[], type: 'normal' | 'timeout'): ChartSeriesPoint[] {
+  const data: ChartSeriesPoint[] = []
+  let prevEndT: number | null = null
+  let needGap = false
+  for (const seg of segs) {
+    if (seg.type !== type) {
+      if (prevEndT != null) needGap = true
+      prevEndT = null
+      continue
     }
+    if (prevEndT == null) {
+      if (needGap && data.length > 0) {
+        const gapT = (data[data.length - 1].t + seg.a.t) / 2
+        data.push({ t: gapT, value: null })
+      }
+      needGap = false
+      data.push({ t: seg.a.t, value: seg.a.value })
+    } else if (type === 'timeout') {
+      data.push({ t: prevEndT, value: null })
+      data.push({ t: seg.a.t, value: seg.a.value })
+    }
+    data.push({ t: seg.b.t, value: seg.b.value })
+    prevEndT = seg.b.t
   }
+  return data
 }
 
 export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
   const names = seriesNames(rows)
   const total = names.length
-  const series: ChartSeries[] = names.map((name, i) => ({
-    name,
-    color: generateSpectrumColor(i, total),
-  }))
-  const byTs = new Map<number, ChartPoint>()
+  const bySource = new Map<string, ChartSeriesPoint[]>()
+  for (const n of names) bySource.set(n, [])
 
   for (const r of rows) {
-    const t = normalizeTs(r.timestamp)
-    let pt = byTs.get(t)
-    if (!pt) {
-      pt = { t }
-      for (const n of names) pt[n] = null
-      byTs.set(t, pt)
-    }
-    pt[r.cron_source || '未知'] = pickValue(r, type)
+    const name = r.cron_source || '未知'
+    bySource.get(name)?.push({
+      t: normalizeTs(r.timestamp),
+      value: pickValue(r, type),
+    })
   }
 
-  const data = [...byTs.values()].sort((a, b) => a.t - b.t)
-  forwardFill(data, names)
-  return { data, series }
+  const series: ChartSeries[] = names.map((name, idx) => {
+    const points = (bySource.get(name) ?? []).sort((a, b) => a.t - b.t)
+
+    const validIdx: number[] = []
+    for (let i = 0; i < points.length; i++) {
+      if (typeof points[i].value === 'number') validIdx.push(i)
+    }
+
+    const segs: Segment[] = []
+    for (let k = 0; k < validIdx.length - 1; k++) {
+      const i = validIdx[k]
+      const j = validIdx[k + 1]
+      segs.push({
+        type: j - i === 1 ? 'normal' : 'timeout',
+        a: points[i],
+        b: points[j],
+      })
+    }
+
+    return {
+      name,
+      color: generateSpectrumColor(idx, total),
+      points,
+      normalLine: buildLineData(segs, 'normal'),
+      timeoutLine: buildLineData(segs, 'timeout'),
+    }
+  })
+
+  return { series }
 }
 
 export interface LatencyStats {

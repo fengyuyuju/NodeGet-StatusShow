@@ -22,6 +22,8 @@ import { cn, strokeColor } from '../utils/cn'
 import {
   buildLatencyChart,
   computeLatencyStats,
+  TIMEOUT_COLOR,
+  type ChartSeries,
   type LatencyStats,
 } from '../utils/latency'
 import { useNodeLatency, LATENCY_RANGES, type LatencyRange } from '../hooks/useNodeLatency'
@@ -389,13 +391,21 @@ type SortDir = 'asc' | 'desc'
 const ms = (v: number) => `${v.toFixed(1)} ms`
 
 function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: LatencyBlockProps) {
-  const { data, series } = useMemo(() => buildLatencyChart(rows, type), [rows, type])
+  const { series } = useMemo(() => buildLatencyChart(rows, type), [rows, type])
   const baseStats = useMemo(() => computeLatencyStats(rows, type), [rows, type])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   const [hovered, setHovered] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('avg')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
-  const empty = data.length === 0
+  const empty = series.every(s => s.points.length === 0)
+
+  const chartData = useMemo(() => {
+    const set = new Set<number>()
+    for (const s of series) {
+      for (const p of s.points) set.add(p.t)
+    }
+    return [...set].sort((a, b) => a - b).map(t => ({ t }))
+  }, [series])
 
   const stats = useMemo(() => {
     const sorted = [...baseStats]
@@ -429,15 +439,15 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   }
 
   const { yDomain, yTicks } = useMemo(() => {
-    const visibleKeys = hovered
-      ? [hovered]
-      : series.filter(s => !hidden.has(s.name)).map(s => s.name)
-    if (visibleKeys.length === 0) return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100] }
+    const visibleSeries = hovered
+      ? series.filter(s => s.name === hovered)
+      : series.filter(s => !hidden.has(s.name))
+    if (visibleSeries.length === 0) return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100] }
     let min = Infinity
     let max = -Infinity
-    for (const d of data) {
-      for (const k of visibleKeys) {
-        const v = d[k]
+    for (const s of visibleSeries) {
+      for (const pt of s.points) {
+        const v = pt.value
         if (typeof v === 'number' && Number.isFinite(v)) {
           if (v < min) min = v
           if (v > max) max = v
@@ -460,7 +470,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
       ticks.push(Math.round(t))
     }
     return { yDomain: [Math.max(0, niceMin), niceMax] as [number, number], yTicks: ticks }
-  }, [data, series, hidden, hovered])
+  }, [series, hidden, hovered])
 
   const rangeLabel = LATENCY_RANGES.find(r => r.key === range)?.label ?? range
 
@@ -503,7 +513,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
         )}
         {!empty && (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <XAxis
                 dataKey="t"
                 type="number"
@@ -513,6 +523,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                 tick={{ fontSize: 11 }}
                 stroke="hsl(var(--muted-foreground))"
                 minTickGap={60}
+                allowDuplicatedCategory={false}
               />
               <YAxis
                 tickFormatter={v => `${Math.round(v)}ms`}
@@ -524,29 +535,38 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                 allowDataOverflow
               />
               <Tooltip
-                content={
-                  <LatencyTooltip
-                    hidden={hidden}
-                    seriesColors={Object.fromEntries(series.map(s => [s.name, s.color]))}
-                  />
-                }
+                content={<LatencyTooltip hidden={hidden} series={series} />}
               />
-              {series.map(s => {
+              {series.flatMap(s => {
                 const isVisible = hovered
                   ? s.name === hovered
                   : !hidden.has(s.name)
-                return (
+                const color = isVisible ? s.color : 'transparent'
+                const timeoutColor = isVisible ? TIMEOUT_COLOR : 'transparent'
+                return [
                   <Line
-                    key={s.name}
+                    key={`${s.name}-normal`}
+                    data={s.normalLine}
                     type="monotone"
-                    dataKey={s.name}
-                    stroke={isVisible ? s.color : 'transparent'}
+                    dataKey="value"
+                    name={s.name}
+                    stroke={color}
                     strokeWidth={1.5}
                     dot={false}
-                    connectNulls
                     isAnimationActive={false}
-                  />
-                )
+                  />,
+                  <Line
+                    key={`${s.name}-timeout`}
+                    data={s.timeoutLine}
+                    type="monotone"
+                    dataKey="value"
+                    name={`${s.name}__timeout`}
+                    stroke={timeoutColor}
+                    strokeWidth={1.5}
+                    dot={false}
+                    isAnimationActive={false}
+                  />,
+                ]
               })}
             </LineChart>
           </ResponsiveContainer>
@@ -704,19 +724,36 @@ function SortHeader({ label, field, current, dir, onClick, className }: SortHead
 
 interface LatencyTooltipProps {
   active?: boolean
-  payload?: Array<{ name: string; value: number; dataKey: string }>
   label?: number
   hidden: Set<string>
-  seriesColors: Record<string, string>
+  series: ChartSeries[]
 }
 
-function LatencyTooltip({ active, payload, label, hidden, seriesColors }: LatencyTooltipProps) {
-  if (!active || !payload) return null
+function LatencyTooltip({ active, label, hidden, series }: LatencyTooltipProps) {
+  if (!active || label == null) return null
 
-  const visiblePayload = payload
-    .filter(p => !hidden.has(p.dataKey))
-    .sort((a, b) => a.value - b.value)
-  if (visiblePayload.length === 0) return null
+  const rows: { name: string; color: string; value: number | null }[] = []
+  for (const s of series) {
+    if (hidden.has(s.name)) continue
+    let found = false
+    let value: number | null = null
+    for (let i = s.points.length - 1; i >= 0; i--) {
+      if (s.points[i].t <= label) {
+        const v = s.points[i].value
+        value = typeof v === 'number' && Number.isFinite(v) ? v : null
+        found = true
+        break
+      }
+    }
+    if (found) rows.push({ name: s.name, color: s.color, value })
+  }
+  if (rows.length === 0) return null
+  rows.sort((a, b) => {
+    if (a.value == null && b.value == null) return 0
+    if (a.value == null) return 1
+    if (b.value == null) return -1
+    return a.value - b.value
+  })
 
   return (
     <div
@@ -729,16 +766,23 @@ function LatencyTooltip({ active, payload, label, hidden, seriesColors }: Latenc
       }}
     >
       <div className="text-muted-foreground mb-1">
-        {label != null ? new Date(label).toLocaleTimeString() : ''}
+        {new Date(label).toLocaleTimeString()}
       </div>
-      {visiblePayload.map(p => (
-        <div key={p.dataKey} className="flex items-center gap-2">
+      {rows.map(r => (
+        <div key={r.name} className="flex items-center gap-2">
           <span
             className="inline-block w-2 h-2 rounded-full shrink-0"
-            style={{ background: seriesColors[p.dataKey] }}
+            style={{ background: r.color }}
           />
-          <span className="flex-1 truncate">{p.dataKey}</span>
-          <span className="font-mono tabular-nums">{ms(p.value)}</span>
+          <span className="flex-1 truncate">{r.name}</span>
+          <span
+            className={cn(
+              'font-mono tabular-nums',
+              r.value == null && 'text-muted-foreground',
+            )}
+          >
+            {r.value == null ? '超时' : ms(r.value)}
+          </span>
         </div>
       ))}
     </div>
