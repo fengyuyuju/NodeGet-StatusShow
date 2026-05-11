@@ -22,7 +22,6 @@ import { cn, strokeColor } from '../utils/cn'
 import {
   buildLatencyChart,
   computeLatencyStats,
-  TIMEOUT_COLOR,
   type ChartSeries,
   type LatencyStats,
 } from '../utils/latency'
@@ -404,7 +403,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     for (const s of series) {
       for (const p of s.points) set.add(p.t)
     }
-    return [...set].sort((a, b) => a - b).map(t => ({ t }))
+    return [...set].sort((a, b) => a - b).map(t => ({ t, _ref: 0 }))
   }, [series])
 
   const stats = useMemo(() => {
@@ -537,12 +536,18 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
               <Tooltip
                 content={<LatencyTooltip hidden={hidden} series={series} />}
               />
+              <Line
+                dataKey="_ref"
+                stroke="transparent"
+                strokeWidth={0}
+                dot={false}
+                isAnimationActive={false}
+              />
               {series.flatMap(s => {
                 const isVisible = hovered
                   ? s.name === hovered
                   : !hidden.has(s.name)
                 const color = isVisible ? s.color : 'transparent'
-                const timeoutColor = isVisible ? TIMEOUT_COLOR : 'transparent'
                 return [
                   <Line
                     key={`${s.name}-normal`}
@@ -561,8 +566,9 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                     type="monotone"
                     dataKey="value"
                     name={`${s.name}__timeout`}
-                    stroke={timeoutColor}
+                    stroke={color}
                     strokeWidth={1.5}
+                    strokeOpacity={0.2}
                     dot={false}
                     isAnimationActive={false}
                   />,
