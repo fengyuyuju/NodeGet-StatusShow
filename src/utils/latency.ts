@@ -150,7 +150,6 @@ export function percentile(sortedAsc: number[], p: number): number {
 }
 
 const PEAK_CLIP_MIN_POINTS = 6
-const PEAK_CLIP_IQR_MULT = 2.5
 
 export function computePeakClipCap(values: number[]): number | null {
   const sorted = values
@@ -159,19 +158,9 @@ export function computePeakClipCap(values: number[]): number | null {
   if (sorted.length < PEAK_CLIP_MIN_POINTS) return null
 
   const max = sorted[sorted.length - 1]
-  const body = sorted.slice(0, -1)
-  if (body.length < 2) return null
+  const p99 = percentile(sorted, 0.99)
 
-  const bodyP95 = percentile(body, 0.95)
-  const q1 = percentile(body, 0.25)
-  const q3 = percentile(body, 0.75)
-  const iqr = q3 - q1
-
-  const cap = iqr > 0
-    ? Math.max(q3 + PEAK_CLIP_IQR_MULT * iqr, bodyP95)
-    : bodyP95
-
-  return max > cap ? cap : null
+  return max > p99 ? p99 : null
 }
 
 export function computeLatencyStats(rows: TaskQueryResult[], type: LatencyType): LatencyStats[] {
