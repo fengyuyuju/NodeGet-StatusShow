@@ -170,42 +170,40 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
           </div>
         </Section>
 
-        {history.length > 1 && (
-          <Section title={`近 ${history.length * 2} 秒趋势`}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <Spark
-                data={history}
-                dataKey="cpu"
-                label="CPU %"
-                stroke="#3b82f6"
-                domain={[0, 100]}
-                format={pct}
-              />
-              <Spark
-                data={history}
-                dataKey="mem"
-                label="内存 %"
-                stroke="#10b981"
-                domain={[0, 100]}
-                format={pct}
-              />
-              <Spark
-                data={history}
-                dataKey="netIn"
-                label="下行"
-                stroke="#8b5cf6"
-                format={v => `${bytes(v)}/s`}
-              />
-              <Spark
-                data={history}
-                dataKey="netOut"
-                label="上行"
-                stroke="#f59e0b"
-                format={v => `${bytes(v)}/s`}
-              />
-            </div>
-          </Section>
-        )}
+        <Section title={history.length > 1 ? `近 ${history.length * 2} 秒趋势` : '近 0 秒趋势'}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <Spark
+              data={history}
+              dataKey="cpu"
+              label="CPU %"
+              stroke="#3b82f6"
+              domain={[0, 100]}
+              format={pct}
+            />
+            <Spark
+              data={history}
+              dataKey="mem"
+              label="内存 %"
+              stroke="#10b981"
+              domain={[0, 100]}
+              format={pct}
+            />
+            <Spark
+              data={history}
+              dataKey="netIn"
+              label="下行"
+              stroke="#8b5cf6"
+              format={v => `${bytes(v)}/s`}
+            />
+            <Spark
+              data={history}
+              dataKey="netOut"
+              label="上行"
+              stroke="#f59e0b"
+              format={v => `${bytes(v)}/s`}
+            />
+          </div>
+        </Section>
 
         <LatencyBlock
           title="TCP Ping"
@@ -348,31 +346,35 @@ function Spark({ data, dataKey, label, stroke, domain, format }: SparkProps) {
         <span className="font-mono">{format(last)}</span>
       </div>
       <div className="h-20">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={stroke} stopOpacity={0.35} />
-                <stop offset="100%" stopColor={stroke} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="t" hide />
-            <YAxis hide domain={domain ?? ['auto', 'auto']} />
-            <Tooltip
-              contentStyle={TOOLTIP_STYLE}
-              labelFormatter={t => new Date(t).toLocaleTimeString()}
-              formatter={(v: number) => [format(v), label]}
-            />
-            <Area
-              type="monotone"
-              dataKey={dataKey}
-              stroke={stroke}
-              strokeWidth={1.5}
-              fill={`url(#${id})`}
-              isAnimationActive={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {data.length > 0 && (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={stroke} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={stroke} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="t" hide />
+              <YAxis hide domain={domain ?? ['auto', 'auto']} />
+              <Tooltip
+                contentStyle={TOOLTIP_STYLE}
+                labelFormatter={t => new Date(t).toLocaleTimeString()}
+                formatter={(v: number) => [format(v), label]}
+              />
+              <Area
+                type="monotone"
+                dataKey={dataKey}
+                stroke={stroke}
+                strokeWidth={1.5}
+                fill={`url(#${id})`}
+                isAnimationActive={false}
+                dot={false}
+                activeDot={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   )
@@ -604,78 +606,77 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
         </div>
       </div>
       <div className="relative h-60">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={empty ? [{ t: Date.now(), _ref: 0 }] : chartData} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
-            <XAxis
-              dataKey="t"
-              type="number"
-              domain={empty ? [Date.now() - 3600000, Date.now()] as [number, number] : ['dataMin', 'dataMax']}
-              scale="time"
-              tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              tick={{ fontSize: 11 }}
-              stroke="hsl(var(--muted-foreground))"
-              ticks={xTicks}
-              interval={0}
-            />
-            <YAxis
-              tickFormatter={v => `${Math.round(v)}ms`}
-              tick={{ fontSize: 11 }}
-              stroke="hsl(var(--muted-foreground))"
-              width={48}
-              domain={yDomain}
-              ticks={yTicks}
-              allowDataOverflow
-              minTickGap={24}
-            />
-            {!empty && (
-              <Tooltip
-                content={<LatencyTooltip hidden={hidden} series={series} />}
-              />
-            )}
-            <Line
-              dataKey="_ref"
-              stroke="transparent"
-              strokeWidth={0}
-              dot={false}
-              isAnimationActive={false}
-            />
-            {displaySeries.flatMap(s => {
-              const isVisible = hovered
-                ? s.name === hovered
-                : !hidden.has(s.name)
-              const color = isVisible ? s.color : 'transparent'
-              return [
-                <Line
-                  key={`${s.name}-normal`}
-                  data={s.normalLine}
-                  type="monotone"
-                  dataKey="value"
-                  name={s.name}
-                  stroke={color}
-                  strokeWidth={1.5}
-                  dot={false}
-                  isAnimationActive={false}
-                />,
-                <Line
-                  key={`${s.name}-timeout`}
-                  data={s.timeoutLine}
-                  type="monotone"
-                  dataKey="value"
-                  name={`${s.name}__timeout`}
-                  stroke={color}
-                  strokeWidth={1.5}
-                  strokeOpacity={0.2}
-                  dot={false}
-                  isAnimationActive={false}
-                />,
-              ]
-            })}
-          </LineChart>
-        </ResponsiveContainer>
-        {empty && (
+        {empty ? (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
             {loading ? '加载中…' : `暂无 ${type} 数据`}
           </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
+              <XAxis
+                dataKey="t"
+                type="number"
+                domain={['dataMin', 'dataMax']}
+                scale="time"
+                tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                tick={{ fontSize: 11 }}
+                stroke="hsl(var(--muted-foreground))"
+                ticks={xTicks}
+                interval={0}
+              />
+              <YAxis
+                tickFormatter={v => `${Math.round(v)}ms`}
+                tick={{ fontSize: 11 }}
+                stroke="hsl(var(--muted-foreground))"
+                width={48}
+                domain={yDomain}
+                ticks={yTicks}
+                allowDataOverflow
+                minTickGap={24}
+              />
+              <Tooltip
+                content={<LatencyTooltip hidden={hidden} series={series} />}
+              />
+              <Line
+                dataKey="_ref"
+                stroke="transparent"
+                strokeWidth={0}
+                dot={false}
+                isAnimationActive={false}
+              />
+              {displaySeries.flatMap(s => {
+                const isVisible = hovered
+                  ? s.name === hovered
+                  : !hidden.has(s.name)
+                const color = isVisible ? s.color : 'transparent'
+                return [
+                  <Line
+                    key={`${s.name}-normal`}
+                    data={s.normalLine}
+                    type="monotone"
+                    dataKey="value"
+                    name={s.name}
+                    stroke={color}
+                    strokeWidth={1.5}
+                    dot={false}
+                    isAnimationActive={false}
+                  />,
+                  <Line
+                    key={`${s.name}-timeout`}
+                    data={s.timeoutLine}
+                    type="monotone"
+                    dataKey="value"
+                    name={`${s.name}__timeout`}
+                    stroke={color}
+                    strokeWidth={1.5}
+                    strokeOpacity={0.2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />,
+                ]
+              })}
+            </LineChart>
+          </ResponsiveContainer>
         )}
         {loading && (
           <div className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
