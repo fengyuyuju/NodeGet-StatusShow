@@ -574,26 +574,17 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
             type="button"
             onClick={() => setPeakClipping(v => !v)}
             aria-pressed={peakClipping}
-            aria-label="切换延迟削峰显示"
+            aria-label="切换延迟峰值裁剪显示"
             className={cn(
               'px-2 py-0.5 text-[11px] rounded transition-colors flex items-center gap-1',
               peakClipping
-                ? 'bg-amber-500 text-white font-medium shadow-sm'
+                ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80',
             )}
-            title="削峰处理：裁剪极端延迟波动以观察主体趋势"
+            title="峰值裁剪：裁剪极端延迟波动以观察主体趋势"
           >
             <Scissors className="w-2.5 h-2.5" />
-            <span>削峰</span>
-            {peakClipping && clippedCount > 0 && (
-              <span
-                role="status"
-                aria-label={`${clippedCount} 个异常点已裁剪`}
-                className="bg-white/20 px-1 rounded-full text-[9px] min-w-[12px] text-center tabular-nums leading-normal"
-              >
-                {clippedCount}
-              </span>
-            )}
+            <span>峰值裁剪</span>
           </button>
           <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
           {LATENCY_RANGES.map(r => (
@@ -613,135 +604,135 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
         </div>
       </div>
       <div className="relative h-60">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={empty ? [{ t: Date.now(), _ref: 0 }] : chartData} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
+            <XAxis
+              dataKey="t"
+              type="number"
+              domain={empty ? [Date.now() - 3600000, Date.now()] as [number, number] : ['dataMin', 'dataMax']}
+              scale="time"
+              tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              tick={{ fontSize: 11 }}
+              stroke="hsl(var(--muted-foreground))"
+              ticks={xTicks}
+              interval={0}
+            />
+            <YAxis
+              tickFormatter={v => `${Math.round(v)}ms`}
+              tick={{ fontSize: 11 }}
+              stroke="hsl(var(--muted-foreground))"
+              width={48}
+              domain={yDomain}
+              ticks={yTicks}
+              allowDataOverflow
+              minTickGap={24}
+            />
+            {!empty && (
+              <Tooltip
+                content={<LatencyTooltip hidden={hidden} series={series} />}
+              />
+            )}
+            <Line
+              dataKey="_ref"
+              stroke="transparent"
+              strokeWidth={0}
+              dot={false}
+              isAnimationActive={false}
+            />
+            {displaySeries.flatMap(s => {
+              const isVisible = hovered
+                ? s.name === hovered
+                : !hidden.has(s.name)
+              const color = isVisible ? s.color : 'transparent'
+              return [
+                <Line
+                  key={`${s.name}-normal`}
+                  data={s.normalLine}
+                  type="monotone"
+                  dataKey="value"
+                  name={s.name}
+                  stroke={color}
+                  strokeWidth={1.5}
+                  dot={false}
+                  isAnimationActive={false}
+                />,
+                <Line
+                  key={`${s.name}-timeout`}
+                  data={s.timeoutLine}
+                  type="monotone"
+                  dataKey="value"
+                  name={`${s.name}__timeout`}
+                  stroke={color}
+                  strokeWidth={1.5}
+                  strokeOpacity={0.2}
+                  dot={false}
+                  isAnimationActive={false}
+                />,
+              ]
+            })}
+          </LineChart>
+        </ResponsiveContainer>
         {empty && (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
             {loading ? '加载中…' : `暂无 ${type} 数据`}
           </div>
         )}
-        {!empty && (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
-              <XAxis
-                dataKey="t"
-                type="number"
-                domain={['dataMin', 'dataMax']}
-                scale="time"
-                tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                tick={{ fontSize: 11 }}
-                stroke="hsl(var(--muted-foreground))"
-                ticks={xTicks}
-                interval={0}
-              />
-              <YAxis
-                tickFormatter={v => `${Math.round(v)}ms`}
-                tick={{ fontSize: 11 }}
-                stroke="hsl(var(--muted-foreground))"
-                width={48}
-                domain={yDomain}
-                ticks={yTicks}
-                allowDataOverflow
-                minTickGap={24}
-              />
-              <Tooltip
-                content={<LatencyTooltip hidden={hidden} series={series} />}
-              />
-              <Line
-                dataKey="_ref"
-                stroke="transparent"
-                strokeWidth={0}
-                dot={false}
-                isAnimationActive={false}
-              />
-              {displaySeries.flatMap(s => {
-                const isVisible = hovered
-                  ? s.name === hovered
-                  : !hidden.has(s.name)
-                const color = isVisible ? s.color : 'transparent'
-                return [
-                  <Line
-                    key={`${s.name}-normal`}
-                    data={s.normalLine}
-                    type="monotone"
-                    dataKey="value"
-                    name={s.name}
-                    stroke={color}
-                    strokeWidth={1.5}
-                    dot={false}
-                    isAnimationActive={false}
-                  />,
-                  <Line
-                    key={`${s.name}-timeout`}
-                    data={s.timeoutLine}
-                    type="monotone"
-                    dataKey="value"
-                    name={`${s.name}__timeout`}
-                    stroke={color}
-                    strokeWidth={1.5}
-                    strokeOpacity={0.2}
-                    dot={false}
-                    isAnimationActive={false}
-                  />,
-                ]
-              })}
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-        {!empty && loading && (
+        {loading && (
           <div className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
         )}
       </div>
 
-      {stats.length > 0 && (
-        <div className="mt-3 border-t pt-3">
-          <div className="flex items-center px-2 pb-1 text-[11px] text-muted-foreground">
-            <span className="flex-1 flex items-center gap-2">
-              来源
-              <button
-                onClick={() => setHidden(new Set())}
-                className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors"
-              >
-                全部显示
-              </button>
-              <button
-                onClick={() => setHidden(new Set(series.map(s => s.name)))}
-                className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors"
-              >
-                全部隐藏
-              </button>
-            </span>
-            <SortHeader
-              label="平均延迟"
-              field="avg"
-              current={sortField}
-              dir={sortDir}
-              onClick={handleSort}
-              className="w-20"
-            />
-            <SortHeader
-              label="P95"
-              field="p95"
-              current={sortField}
-              dir={sortDir}
-              onClick={handleSort}
-              className="w-20"
-            />
-            <SortHeader
-              label="抖动"
-              field="jitter"
-              current={sortField}
-              dir={sortDir}
-              onClick={handleSort}
-              className="w-16"
-            />
-            <SortHeader
-              label="丢包率"
-              field="lossRate"
-              current={sortField}
-              dir={sortDir}
-              onClick={handleSort}
-              className="w-14"
-            />
-          </div>
+      <div className="mt-3 border-t pt-3">
+        <div className="flex items-center px-2 pb-1 text-[11px] text-muted-foreground">
+          <span className="flex-1 flex items-center gap-2">
+            来源
+            <button
+              onClick={() => setHidden(new Set())}
+              className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors"
+            >
+              全部显示
+            </button>
+            <button
+              onClick={() => setHidden(new Set(series.map(s => s.name)))}
+              className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors"
+            >
+              全部隐藏
+            </button>
+          </span>
+          <SortHeader
+            label="平均延迟"
+            field="avg"
+            current={sortField}
+            dir={sortDir}
+            onClick={handleSort}
+            className="w-20"
+          />
+          <SortHeader
+            label="P95"
+            field="p95"
+            current={sortField}
+            dir={sortDir}
+            onClick={handleSort}
+            className="w-20"
+          />
+          <SortHeader
+            label="抖动"
+            field="jitter"
+            current={sortField}
+            dir={sortDir}
+            onClick={handleSort}
+            className="w-16"
+          />
+          <SortHeader
+            label="丢包率"
+            field="lossRate"
+            current={sortField}
+            dir={sortDir}
+            onClick={handleSort}
+            className="w-14"
+          />
+        </div>
+        {stats.length > 0 ? (
           <div className="space-y-0.5" onMouseLeave={() => setHovered(null)}>
             {stats.map(s => (
               <LatencyStatsRow
@@ -753,8 +744,12 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
               />
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="py-6 text-center text-xs text-muted-foreground">
+            {loading ? '加载中…' : `暂无 ${type} 数据`}
+          </div>
+        )}
+      </div>
     </Card>
   )
 }
