@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowUp } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, Scissors } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -21,8 +21,11 @@ import { cycleProgress, hasCost, remainingDays, remainingValue } from '../utils/
 import { cn, strokeColor } from '../utils/cn'
 import {
   buildLatencyChart,
+  computePeakClipCap,
   computeLatencyStats,
+  percentile,
   type ChartSeries,
+  type ChartSeriesPoint,
   type LatencyStats,
 } from '../utils/latency'
 import { useNodeLatency, LATENCY_RANGES, type LatencyRange } from '../hooks/useNodeLatency'
@@ -393,6 +396,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   const { series } = useMemo(() => buildLatencyChart(rows, type), [rows, type])
   const baseStats = useMemo(() => computeLatencyStats(rows, type), [rows, type])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
+  const [peakClipping, setPeakClipping] = useState(false)
   const [hovered, setHovered] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('avg')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -419,8 +423,58 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     return ticks
   }, [chartData])
 
+  const { displaySeries, caps } = useMemo(() => {
+    if (!peakClipping) return { displaySeries: series, caps: new Map<string, number | null>() }
+    const capMap = new Map<string, number | null>()
+    const clipped = series.map(s => {
+      const values = s.points
+        .map(pt => pt.value)
+        .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+      const cap = computePeakClipCap(values)
+      capMap.set(s.name, cap)
+      if (cap == null) return s
+      const clip = (pts: ChartSeriesPoint[]) =>
+        pts.map(p => p.value != null && p.value > cap ? { ...p, value: cap } : p)
+      return {
+        ...s,
+        points: s.points.map(p => p.value != null && p.value > cap ? { ...p, value: cap } : p),
+        normalLine: clip(s.normalLine),
+        timeoutLine: clip(s.timeoutLine),
+      }
+    })
+    return { displaySeries: clipped, caps: capMap }
+  }, [series, peakClipping])
+
   const stats = useMemo(() => {
-    const sorted = [...baseStats]
+    const source = peakClipping ? displaySeries : null
+    const base = source
+      ? source.map(s => {
+          const rawStat = baseStats.find(bs => bs.name === s.name)
+          const vals = s.points
+            .map(p => p.value)
+            .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+          let avg: number | null = null
+          let p95: number | null = null
+          let jitter: number | null = null
+          if (vals.length) {
+            avg = vals.reduce((sum, v) => sum + v, 0) / vals.length
+            p95 = percentile([...vals].sort((a, b) => a - b), 0.95)
+            if (vals.length >= 2) {
+              jitter = vals.slice(1).reduce((sum, v, i) => sum + Math.abs(v - vals[i]), 0) / (vals.length - 1)
+            }
+          }
+          return {
+            name: s.name,
+            color: s.color,
+            avg,
+            p95,
+            jitter,
+            lossRate: rawStat?.lossRate ?? 0,
+          } satisfies LatencyStats
+        })
+      : baseStats
+
+    const sorted = [...base]
     sorted.sort((a, b) => {
       let av: number, bv: number
       if (sortField === 'avg') {
@@ -439,7 +493,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
       return sortDir === 'asc' ? av - bv : bv - av
     })
     return sorted
-  }, [baseStats, sortField, sortDir])
+  }, [baseStats, displaySeries, peakClipping, sortField, sortDir])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -450,14 +504,29 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     }
   }
 
-  const { yDomain, yTicks } = useMemo(() => {
-    const visibleSeries = hovered
+  const { yDomain, yTicks, clippedCount } = useMemo(() => {
+    const rawVisible = hovered
       ? series.filter(s => s.name === hovered)
       : series.filter(s => !hidden.has(s.name))
-    if (visibleSeries.length === 0) return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100] }
+    const displayVisible = hovered
+      ? displaySeries.filter(s => s.name === hovered)
+      : displaySeries.filter(s => !hidden.has(s.name))
+    if (displayVisible.length === 0) {
+      return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100], clippedCount: 0 }
+    }
+    let clippedCount = 0
+    if (peakClipping) {
+      for (const s of rawVisible) {
+        const cap = caps.get(s.name)
+        if (cap == null) continue
+        for (const pt of s.points) {
+          if (pt.value != null && pt.value > cap) clippedCount++
+        }
+      }
+    }
     let min = Infinity
     let max = -Infinity
-    for (const s of visibleSeries) {
+    for (const s of displayVisible) {
       for (const pt of s.points) {
         const v = pt.value
         if (typeof v === 'number' && Number.isFinite(v)) {
@@ -467,7 +536,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
       }
     }
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100] }
+      return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100], clippedCount: 0 }
     }
     const range = max - min || 1
     const rawStep = range / 4
@@ -481,8 +550,8 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     for (let t = niceMin; t <= niceMax + step / 2; t += step) {
       ticks.push(Math.round(t))
     }
-    return { yDomain: [Math.max(0, niceMin), niceMax] as [number, number], yTicks: ticks }
-  }, [series, hidden, hovered])
+    return { yDomain: [Math.max(0, niceMin), niceMax] as [number, number], yTicks: ticks, clippedCount }
+  }, [displaySeries, series, caps, hidden, hovered, peakClipping])
 
   const rangeLabel = LATENCY_RANGES.find(r => r.key === range)?.label ?? range
 
@@ -500,7 +569,33 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
         <div className="text-xs uppercase tracking-wide text-muted-foreground">
           {title} · 近 {rangeLabel}
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 items-center">
+          <button
+            type="button"
+            onClick={() => setPeakClipping(v => !v)}
+            aria-pressed={peakClipping}
+            aria-label="切换延迟削峰显示"
+            className={cn(
+              'px-2 py-0.5 text-[11px] rounded transition-colors flex items-center gap-1',
+              peakClipping
+                ? 'bg-amber-500 text-white font-medium shadow-sm'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80',
+            )}
+            title="削峰处理：裁剪极端延迟波动以观察主体趋势"
+          >
+            <Scissors className="w-2.5 h-2.5" />
+            <span>削峰</span>
+            {peakClipping && clippedCount > 0 && (
+              <span
+                role="status"
+                aria-label={`${clippedCount} 个异常点已裁剪`}
+                className="bg-white/20 px-1 rounded-full text-[9px] min-w-[12px] text-center tabular-nums leading-normal"
+              >
+                {clippedCount}
+              </span>
+            )}
+          </button>
+          <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
           {LATENCY_RANGES.map(r => (
             <button
               key={r.key}
@@ -545,6 +640,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                 domain={yDomain}
                 ticks={yTicks}
                 allowDataOverflow
+                minTickGap={24}
               />
               <Tooltip
                 content={<LatencyTooltip hidden={hidden} series={series} />}
@@ -556,7 +652,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                 dot={false}
                 isAnimationActive={false}
               />
-              {series.flatMap(s => {
+              {displaySeries.flatMap(s => {
                 const isVisible = hovered
                   ? s.name === hovered
                   : !hidden.has(s.name)
