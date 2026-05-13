@@ -27,7 +27,7 @@ Fork本仓库 修改public/config.json 然后再cloudflare pages / vercel 直接
 
 此下载链接始终与最新版保持一致，利用cloudflare pages自动编译生成
 
-<https://nodeget.pages.dev/nodeget-statusshow.zip>
+<https://nodeget.pages.dev/NodeGet-StatusShow.zip>
 
 ## 环境变量
 如果不想编辑修改public/config.json，可以利用环境变量在预编译阶段自动生成public/config.json
