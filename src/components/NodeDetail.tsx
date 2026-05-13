@@ -573,20 +573,34 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
         </div>
         <div className="flex gap-1 items-center">
           <button
+            onClick={() => setHidden(new Set())}
+            className="p-1 rounded transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
+            title="全部显示"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setHidden(new Set(series.map(s => s.name)))}
+            className="p-1 rounded transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
+            title="全部隐藏"
+          >
+            <EyeOff className="w-3.5 h-3.5" />
+          </button>
+          <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
+          <button
             type="button"
             onClick={() => setPeakClipping(v => !v)}
             aria-pressed={peakClipping}
             aria-label="切换延迟峰值裁剪显示"
             className={cn(
-              'px-2 py-0.5 text-[11px] rounded transition-colors flex items-center gap-1',
+              'p-1 rounded transition-colors',
               peakClipping
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80',
             )}
             title="峰值裁剪：裁剪极端延迟波动以观察主体趋势"
           >
-            <Scissors className="w-2.5 h-2.5" />
-            <span>峰值裁剪</span>
+            <Scissors className="w-3 h-3" />
           </button>
           <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
           {LATENCY_RANGES.map(r => (
@@ -685,22 +699,8 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
 
       <div className="mt-3 border-t pt-3">
         <div className="flex items-center px-2 pb-1 text-[11px] text-muted-foreground">
-          <span className="flex-1 flex items-center gap-2">
+          <span className="flex-1">
             来源
-            <button
-              onClick={() => setHidden(new Set())}
-              className="p-0.5 rounded hover:bg-muted/80 transition-colors"
-              title="全部显示"
-            >
-              <Eye className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setHidden(new Set(series.map(s => s.name)))}
-              className="p-0.5 rounded hover:bg-muted/80 transition-colors"
-              title="全部隐藏"
-            >
-              <EyeOff className="w-3.5 h-3.5" />
-            </button>
           </span>
           <SortHeader
             label="平均延迟"
