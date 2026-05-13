@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowUp, Scissors } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, Eye, EyeOff, Scissors } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -689,15 +689,17 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
             来源
             <button
               onClick={() => setHidden(new Set())}
-              className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors"
+              className="p-0.5 rounded hover:bg-muted/80 transition-colors"
+              title="全部显示"
             >
-              全部显示
+              <Eye className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setHidden(new Set(series.map(s => s.name)))}
-              className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors"
+              className="p-0.5 rounded hover:bg-muted/80 transition-colors"
+              title="全部隐藏"
             >
-              全部隐藏
+              <EyeOff className="w-3.5 h-3.5" />
             </button>
           </span>
           <SortHeader
