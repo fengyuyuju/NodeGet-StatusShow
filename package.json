@@ -1,12 +1,12 @@
 {
   "name": "nodeget-statusshow",
   "private": true,
-  "version": "1.4.1",
+  "version": "1.4.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "postbuild": "node scripts/build-zip.mjs && node scripts/build-config.mjs",
+    "postbuild": "node scripts/build-template-config.mjs && node scripts/build-filelist.mjs && node scripts/build-zip.mjs && node scripts/build-config.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json"
   },

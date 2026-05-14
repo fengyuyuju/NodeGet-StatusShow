@@ -15,7 +15,7 @@ npm run dev
 
 此为官方最推荐的部署方式，方便升级至新版
 
-Fork本仓库 修改public/config.json 然后再cloudflare pages / vercel 直接摁部署 绑定域名
+Fork本仓库 修改 [nodeget-theme.json](./nodeget-theme.json) 中的 user_preferences 和 site_tokens， 然后在cloudflare pages / vercel 直接部署，绑定域名
 
 要更新版本则就在 fork 的 GitHub 仓库点击 sync 就行，可以轻松且可控的升级
 
