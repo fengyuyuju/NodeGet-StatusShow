@@ -23,7 +23,7 @@ import {
   buildLatencyChart,
   computePeakClipCap,
   computeLatencyStats,
-  percentile,
+  TIMEOUT_COLOR,
   type ChartSeries,
   type ChartSeriesPoint,
   type LatencyStats,
@@ -389,7 +389,7 @@ interface LatencyBlockProps {
   onRangeChange: (r: LatencyRange) => void
 }
 
-type SortField = 'avg' | 'p95' | 'jitter' | 'lossRate'
+type SortField = 'avg' | 'p99' | 'jitter' | 'lossRate'
 type SortDir = 'asc' | 'desc'
 
 const ms = (v: number) => `${v.toFixed(1)} ms`
@@ -398,7 +398,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   const { series } = useMemo(() => buildLatencyChart(rows, type), [rows, type])
   const baseStats = useMemo(() => computeLatencyStats(rows, type), [rows, type])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
-  const [peakClipping, setPeakClipping] = useState(false)
+  const [peakClipping, setPeakClipping] = useState(true)
   const [hovered, setHovered] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('avg')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -448,30 +448,24 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   }, [series, peakClipping])
 
   const stats = useMemo(() => {
-    const source = peakClipping ? displaySeries : null
-    const base = source
-      ? source.map(s => {
-          const rawStat = baseStats.find(bs => bs.name === s.name)
+    const base = peakClipping
+      ? displaySeries.map(s => {
+          const rawStat = baseStats.find(bs => bs.name === s.name)!
           const vals = s.points
             .map(p => p.value)
             .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
           let avg: number | null = null
-          let p95: number | null = null
           let jitter: number | null = null
           if (vals.length) {
             avg = vals.reduce((sum, v) => sum + v, 0) / vals.length
-            p95 = percentile([...vals].sort((a, b) => a - b), 0.95)
             if (vals.length >= 2) {
               jitter = vals.slice(1).reduce((sum, v, i) => sum + Math.abs(v - vals[i]), 0) / (vals.length - 1)
             }
           }
           return {
-            name: s.name,
-            color: s.color,
+            ...rawStat,
             avg,
-            p95,
             jitter,
-            lossRate: rawStat?.lossRate ?? 0,
           } satisfies LatencyStats
         })
       : baseStats
@@ -482,9 +476,9 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
       if (sortField === 'avg') {
         av = a.avg ?? Infinity
         bv = b.avg ?? Infinity
-      } else if (sortField === 'p95') {
-        av = a.p95 ?? Infinity
-        bv = b.p95 ?? Infinity
+      } else if (sortField === 'p99') {
+        av = a.p99 ?? Infinity
+        bv = b.p99 ?? Infinity
       } else if (sortField === 'jitter') {
         av = a.jitter ?? Infinity
         bv = b.jitter ?? Infinity
@@ -554,6 +548,19 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     }
     return { yDomain: [Math.max(0, niceMin), niceMax] as [number, number], yTicks: ticks, clippedCount }
   }, [displaySeries, series, caps, hidden, hovered, peakClipping])
+
+  const timeoutMarks = useMemo(() => {
+    const visible = hovered
+      ? series.filter(s => s.name === hovered)
+      : series.filter(s => !hidden.has(s.name))
+    const set = new Set<number>()
+    for (const s of visible) {
+      for (const p of s.points) {
+        if (p.value == null) set.add(p.t)
+      }
+    }
+    return [...set].sort((a, b) => a - b).map(t => ({ t, y: yDomain[0] }))
+  }, [series, yDomain, hidden, hovered])
 
   const rangeLabel = LATENCY_RANGES.find(r => r.key === range)?.label ?? range
 
@@ -689,6 +696,25 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                   />,
                 ]
               })}
+              {timeoutMarks.length > 0 && (
+                <Line
+                  data={timeoutMarks}
+                  dataKey="y"
+                  stroke="none"
+                  dot={(props: any) => {
+                    const { cx, cy } = props
+                    if (cx == null || cy == null) return null
+                    return (
+                      <polygon
+                        points={`${cx},${cy - 5} ${cx - 3.5},${cy + 1} ${cx + 3.5},${cy + 1}`}
+                        fill={TIMEOUT_COLOR}
+                        opacity={0.8}
+                      />
+                    )
+                  }}
+                  isAnimationActive={false}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -711,8 +737,8 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
             className="w-20"
           />
           <SortHeader
-            label="P95"
-            field="p95"
+            label="P99"
+            field="p99"
             current={sortField}
             dir={sortDir}
             onClick={handleSort}
@@ -768,7 +794,7 @@ function LatencyStatsRow({
   onToggle: () => void
   onHover: () => void
 }) {
-  const { name, color, avg, p95, jitter, lossRate } = stat
+  const { name, color, avg, p99, jitter, lossRate } = stat
 
   return (
     <div
@@ -790,7 +816,7 @@ function LatencyStatsRow({
         {avg != null ? ms(avg) : '—'}
       </span>
       <span className="w-20 text-right tabular-nums font-mono">
-        {p95 != null ? ms(p95) : '—'}
+        {p99 != null ? ms(p99) : '—'}
       </span>
       <span className="w-16 text-right tabular-nums font-mono">
         {jitter != null ? ms(jitter) : '—'}
