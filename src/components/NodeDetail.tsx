@@ -389,7 +389,7 @@ interface LatencyBlockProps {
   onRangeChange: (r: LatencyRange) => void
 }
 
-type SortField = 'avg' | 'p99' | 'jitter' | 'lossRate'
+type SortField = 'avg' | 'p95' | 'p99' | 'jitter' | 'lossRate'
 type SortDir = 'asc' | 'desc'
 
 const ms = (v: number) => `${v.toFixed(1)} ms`
@@ -476,6 +476,9 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
       if (sortField === 'avg') {
         av = a.avg ?? Infinity
         bv = b.avg ?? Infinity
+      } else if (sortField === 'p95') {
+        av = a.p95 ?? Infinity
+        bv = b.p95 ?? Infinity
       } else if (sortField === 'p99') {
         av = a.p99 ?? Infinity
         bv = b.p99 ?? Infinity
@@ -646,6 +649,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                 interval={0}
               />
               <YAxis
+                key={`${yDomain[0]}-${yDomain[1]}`}
                 tickFormatter={v => `${Math.round(v)}ms`}
                 tick={{ fontSize: 11 }}
                 stroke="hsl(var(--muted-foreground))"
@@ -737,6 +741,14 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
             className="w-20"
           />
           <SortHeader
+            label="P95"
+            field="p95"
+            current={sortField}
+            dir={sortDir}
+            onClick={handleSort}
+            className="w-20"
+          />
+          <SortHeader
             label="P99"
             field="p99"
             current={sortField}
@@ -794,7 +806,7 @@ function LatencyStatsRow({
   onToggle: () => void
   onHover: () => void
 }) {
-  const { name, color, avg, p99, jitter, lossRate } = stat
+  const { name, color, avg, p95, p99, jitter, lossRate } = stat
 
   return (
     <div
@@ -814,6 +826,9 @@ function LatencyStatsRow({
       </span>
       <span className="w-20 text-right tabular-nums font-mono">
         {avg != null ? ms(avg) : '—'}
+      </span>
+      <span className="w-20 text-right tabular-nums font-mono">
+        {p95 != null ? ms(p95) : '—'}
       </span>
       <span className="w-20 text-right tabular-nums font-mono">
         {p99 != null ? ms(p99) : '—'}
