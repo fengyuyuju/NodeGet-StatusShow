@@ -571,20 +571,24 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     return [...set].sort((a, b) => a - b).map(t => ({ t, y: yDomain[0] }))
   }, [series, yDomain, hidden, hovered])
 
+  const isTouchRef = useRef(false)
+  useEffect(() => {
+    isTouchRef.current = window.matchMedia('(pointer: coarse)').matches
+  }, [])
+
   const handleListMouseMove = (e: React.MouseEvent) => {
+    if (isTouchRef.current) return
     const row = (e.target as HTMLElement).closest<HTMLElement>('[data-source]')
     setHovered(row?.dataset.source ?? null)
   }
 
-  const toggle = (name: string) => {
-    setHovered(null)
+  const toggle = (name: string) =>
     setHidden(prev => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
       else next.add(name)
       return next
     })
-  }
 
   const toolbarRow = (
     <div className="flex flex-wrap items-center justify-end gap-2 mb-3">
