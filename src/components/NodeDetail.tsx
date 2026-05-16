@@ -660,7 +660,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
         </div>
       ) : (
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
+          <LineChart data={chartData} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
             <XAxis
               dataKey="t"
               type="number"
