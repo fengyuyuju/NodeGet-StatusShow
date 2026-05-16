@@ -88,12 +88,21 @@ export interface Node {
   history: HistorySample[]
 }
 
-export interface SiteConfig {
+export interface ThemeConfig {
   "name": string
   "description":string
   "author"?: string
   "repository"?: string
   "dist_page"?: string;
+  "user_preferences_form":{
+    version:string,
+    items:any[]
+  },
+  "version"?: string
+  "license"?: string
+}
+
+export interface UserConfig {
   "user_preferences":{
     site_name?: string
     site_logo?: string
@@ -104,9 +113,9 @@ export interface SiteConfig {
     backend_url: string; 
     token: string 
   }[]
-  "version"?: string
-  "license"?: string
 }
+
+export type Site_Config = ThemeConfig & UserConfig
 
 export interface TaskQueryResult {
   task_id: number
