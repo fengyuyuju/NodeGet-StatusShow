@@ -571,8 +571,6 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     return [...set].sort((a, b) => a - b).map(t => ({ t, y: yDomain[0] }))
   }, [series, yDomain, hidden, hovered])
 
-  const rangeLabel = LATENCY_RANGES.find(r => r.key === range)?.label ?? range
-
   const handleListMouseMove = (e: React.MouseEvent) => {
     const row = (e.target as HTMLElement).closest<HTMLElement>('[data-source]')
     setHovered(row?.dataset.source ?? null)
@@ -589,7 +587,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   const toolbarRow = (
     <div className="flex flex-wrap items-center justify-end gap-2 mb-3">
       <div className="text-xs uppercase tracking-wide text-muted-foreground mr-auto">
-        {title} · 近 {rangeLabel}
+        {title}
       </div>
       <div className="flex gap-1 items-center">
         <button
