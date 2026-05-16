@@ -518,17 +518,17 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   }
 
   const { yDomain, yTicks, clippedCount } = useMemo(() => {
-    const rawVisible = hovered
-      ? series.filter(s => s.name === hovered)
-      : series.filter(s => !hidden.has(s.name))
-    const displayVisible = hovered
-      ? displaySeries.filter(s => s.name === hovered)
-      : displaySeries.filter(s => !hidden.has(s.name))
-    if (displayVisible.length === 0) {
+    const visibleDisplay = displaySeries.filter(s =>
+      hovered ? s.name === hovered : !hidden.has(s.name),
+    )
+    if (visibleDisplay.length === 0) {
       return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100], clippedCount: 0 }
     }
     let clippedCount = 0
     if (peakClipping) {
+      const rawVisible = hovered
+        ? series.filter(s => s.name === hovered)
+        : series.filter(s => !hidden.has(s.name))
       for (const s of rawVisible) {
         const cap = caps.get(s.name)
         if (cap == null) continue
@@ -539,7 +539,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     }
     let min = Infinity
     let max = -Infinity
-    for (const s of displayVisible) {
+    for (const s of visibleDisplay) {
       for (const pt of s.points) {
         const v = pt.value
         if (typeof v === 'number' && Number.isFinite(v)) {
@@ -551,10 +551,10 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
       return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100], clippedCount: 0 }
     }
-    const step = (max - min) / 3
-    const yTicks = [min, min + step, min + 2 * step, max].map(v => Math.round(v * 10) / 10)
-    const pad = (max - min) * 0.05
-    const yDomain: [number, number] = [Math.max(0, min - pad), max + pad]
+    const range = max - min || 1
+    const step = range / 3
+    const yTicks = [min, min + step, min + 2 * step, max]
+    const yDomain: [number, number] = [min, max]
     return { yDomain, yTicks, clippedCount }
   }, [displaySeries, series, caps, hidden, hovered, peakClipping])
 
@@ -572,6 +572,11 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   }, [series, yDomain, hidden, hovered])
 
   const rangeLabel = LATENCY_RANGES.find(r => r.key === range)?.label ?? range
+
+  const handleListMouseMove = (e: React.MouseEvent) => {
+    const row = (e.target as HTMLElement).closest<HTMLElement>('[data-source]')
+    setHovered(row?.dataset.source ?? null)
+  }
 
   const toggle = (name: string) =>
     setHidden(prev => {
@@ -601,7 +606,6 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
         >
           <EyeOff className="w-3.5 h-3.5" />
         </button>
-        <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
         <button
           type="button"
           onClick={() => setPeakClipping(v => !v)}
@@ -693,7 +697,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
               const isVisible = hovered
                 ? s.name === hovered
                 : !hidden.has(s.name)
-              const color = isVisible ? s.color : 'transparent'
+              if (!isVisible) return []
               return [
                 <Line
                   key={`${s.name}-normal`}
@@ -701,7 +705,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                   type="monotone"
                   dataKey="value"
                   name={s.name}
-                  stroke={color}
+                  stroke={s.color}
                   strokeWidth={1.5}
                   dot={false}
                   isAnimationActive={false}
@@ -712,7 +716,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
                   type="monotone"
                   dataKey="value"
                   name={`${s.name}__timeout`}
-                  stroke={color}
+                  stroke={s.color}
                   strokeWidth={1.5}
                   strokeOpacity={0.2}
                   dot={false}
@@ -749,7 +753,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   )
 
   const statsTable = (
-    <div className={cn('mt-3 border-t pt-3', maximized && 'shrink-0')}>
+    <div className={cn('mt-3 border-t pt-3', maximized && 'flex-1 min-h-0 overflow-y-auto')}>
       <div className="flex items-center px-2 pb-1 text-[11px] text-muted-foreground">
         <span className="flex-1">
           来源
@@ -796,14 +800,13 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
         />
       </div>
       {stats.length > 0 ? (
-        <div className="space-y-0.5" onMouseLeave={() => setHovered(null)}>
+        <div onMouseMove={handleListMouseMove} onMouseLeave={() => setHovered(null)}>
           {stats.map(s => (
             <LatencyStatsRow
               key={s.name}
               stat={s}
               hidden={hidden.has(s.name)}
               onToggle={() => toggle(s.name)}
-              onHover={() => setHovered(s.name)}
             />
           ))}
         </div>
@@ -841,19 +844,17 @@ function LatencyStatsRow({
   stat,
   hidden,
   onToggle,
-  onHover,
 }: {
   stat: LatencyStats
   hidden: boolean
   onToggle: () => void
-  onHover: () => void
 }) {
   const { name, color, avg, p95, p99, jitter, lossRate } = stat
 
   return (
     <div
       onClick={onToggle}
-      onMouseEnter={onHover}
+      data-source={name}
       className={cn(
         'flex items-center px-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity hover:bg-muted/60',
         hidden && 'opacity-35',

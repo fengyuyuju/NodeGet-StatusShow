@@ -6,11 +6,11 @@ import type { TaskQueryResult } from '../types'
 export type LatencyRange = '1h' | '6h' | '12h' | '1d' | '7d'
 
 export const LATENCY_RANGES: { key: LatencyRange; label: string; ms: number }[] = [
-  { key: '1h', label: '1小时', ms: 60 * 60 * 1000 },
-  { key: '6h', label: '6小时', ms: 6 * 60 * 60 * 1000 },
-  { key: '12h', label: '12小时', ms: 12 * 60 * 60 * 1000 },
-  { key: '1d', label: '1天', ms: 24 * 60 * 60 * 1000 },
-  { key: '7d', label: '7天', ms: 7 * 24 * 60 * 60 * 1000 },
+  { key: '1h', label: '1H', ms: 60 * 60 * 1000 },
+  { key: '6h', label: '6H', ms: 6 * 60 * 60 * 1000 },
+  { key: '12h', label: '12H', ms: 12 * 60 * 60 * 1000 },
+  { key: '1d', label: '1D', ms: 24 * 60 * 60 * 1000 },
+  { key: '7d', label: '7D', ms: 7 * 24 * 60 * 60 * 1000 },
 ]
 
 const REFRESH_MS = 10_000
