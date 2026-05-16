@@ -15,6 +15,9 @@ import { RegionFilter } from './components/RegionFilter'
 const WorldMap = lazy(() =>
   import('./components/WorldMap').then(m => ({ default: m.WorldMap })),
 )
+const LatencySummary = lazy(() =>
+  import('./components/LatencySummary').then(m => ({ default: m.LatencySummary })),
+)
 import { deriveUsage, displayName } from './utils/derive'
 import type { Sort, View } from './types'
 
@@ -36,6 +39,15 @@ function readHash() {
   return decodeURIComponent(window.location.hash.slice(1)) || null
 }
 
+function initialPage(): 'home' | 'latency' {
+  return readHash() === 'latency' ? 'latency' : 'home'
+}
+
+function initialSelected() {
+  const hash = readHash()
+  return hash && hash !== 'latency' ? hash : null
+}
+
 const num = (v?: number) => (Number.isFinite(v) ? (v as number) : -Infinity)
 
 export function App() {
@@ -47,7 +59,8 @@ export function App() {
   const [query, setQuery] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [activeRegion, setActiveRegion] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string | null>(readHash)
+  const [page, setPage] = useState<'home' | 'latency'>(initialPage)
+  const [selected, setSelected] = useState<string | null>(initialSelected)
 
   useEffect(() => {
     localStorage.setItem(VIEW_KEY, view)
@@ -58,20 +71,32 @@ export function App() {
   }, [sort])
 
   useEffect(() => {
-    const onHash = () => setSelected(readHash())
+    const onHash = () => {
+      const hash = readHash()
+      if (hash === 'latency') {
+        setPage('latency')
+        setSelected(null)
+        return
+      }
+      setPage('home')
+      setSelected(hash)
+    }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
   useEffect(() => {
-    const target = selected ? `#${encodeURIComponent(selected)}` : ''
+    const target =
+      page === 'latency' ? '#latency' : selected ? `#${encodeURIComponent(selected)}` : ''
     if (window.location.hash === target) return
-    if (selected) {
+    if (page === 'latency') {
+      window.location.hash = 'latency'
+    } else if (selected) {
       window.location.hash = encodeURIComponent(selected)
     } else {
       history.replaceState(null, '', window.location.pathname + window.location.search)
     }
-  }, [selected])
+  }, [page, selected])
 
   const allTags = useMemo(() => {
     const set = new Set<string>()
@@ -158,7 +183,17 @@ export function App() {
     })
   }, [nodes, query, activeTag, activeRegion, sort, regions])
 
-  const selectedNode = selected ? nodes.get(selected) || null : null
+  const selectedNode = page === 'home' && selected ? nodes.get(selected) || null : null
+
+  const openLatency = () => {
+    setSelected(null)
+    setPage('latency')
+  }
+
+  const closeLatency = () => {
+    setPage('home')
+    setSelected(null)
+  }
 
   if (configError) {
     return (
@@ -187,18 +222,35 @@ export function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <Background />
-      <Navbar
-        siteName={config.user_preferences.site_name || '你没设置'}
-        logo={logo}
-        query={query}
-        onQuery={setQuery}
-        view={view}
-        onView={setView}
-        sort={sort}
-        onSort={setSort}
-      />
+      {page !== 'latency' && (
+        <Navbar
+          siteName={config.user_preferences.site_name || '你没设置'}
+          logo={logo}
+          query={query}
+          onQuery={setQuery}
+          view={view}
+          onView={setView}
+          sort={sort}
+          onSort={setSort}
+          page={page}
+          onOpenLatency={openLatency}
+        />
+      )}
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      {page === 'latency' ? (
+        <Suspense
+          fallback={
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+              <div className="py-24 flex items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" /> 加载中…
+              </div>
+            </main>
+          }
+        >
+          <LatencySummary nodes={nodes} pool={pool} onBack={closeLatency} />
+        </Suspense>
+      ) : (
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         {!empty && (
           <RegionFilter
             regions={regions.list}
@@ -257,8 +309,11 @@ export function App() {
           </Alert>
         )}
       </main>
+      )}
 
-      <Footer text={config.user_preferences.footer} repo={config.repository} dist_page={config.dist_page}/>
+      {page !== 'latency' && (
+        <Footer text={config.user_preferences.footer} repo={config.repository} dist_page={config.dist_page}/>
+      )}
 
       <NodeDetail
         node={selectedNode}

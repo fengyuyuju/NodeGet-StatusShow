@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Search as SearchIcon, X } from 'lucide-react'
+import { Activity, Search as SearchIcon, X } from 'lucide-react'
 import { Search } from './Search'
 import { ViewToggle } from './ViewToggle'
 import { ThemeToggle } from './ThemeToggle'
@@ -16,9 +16,11 @@ interface Props {
   onView: (v: View) => void
   sort: Sort
   onSort: (v: Sort) => void
+  page: 'home' | 'latency'
+  onOpenLatency: () => void
 }
 
-export function Navbar({ siteName, logo, query, onQuery, view, onView, sort, onSort }: Props) {
+export function Navbar({ siteName, logo, query, onQuery, view, onView, sort, onSort, page, onOpenLatency }: Props) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [stuck, setStuck] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -68,8 +70,30 @@ export function Navbar({ siteName, logo, query, onQuery, view, onView, sort, onS
           >
             {searchOpen ? <X className="h-4 w-4" /> : <SearchIcon className="h-4 w-4" />}
           </Button>
-          <ViewToggle value={view} onChange={onView} />
-          <SortMenu value={sort} onChange={onSort} />
+          <div className="bg-muted p-1 rounded-md">
+            <button
+              type="button"
+              onClick={() => {
+                if (page === 'home') onOpenLatency()
+              }}
+              aria-label="延迟汇总"
+              aria-pressed={page === 'latency'}
+              title="延迟汇总"
+              className={`relative z-10 inline-flex items-center justify-center px-3 py-1 text-sm font-medium rounded-sm transition-colors ${
+                page === 'latency'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Activity className="h-4 w-4" />
+            </button>
+          </div>
+          {page === 'home' && (
+            <>
+              <ViewToggle value={view} onChange={onView} />
+              <SortMenu value={sort} onChange={onSort} />
+            </>
+          )}
           <ThemeToggle />
         </div>
       </div>

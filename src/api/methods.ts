@@ -20,3 +20,15 @@ export const taskQuery = (
   conditions: TaskQueryCondition[],
   timeoutMs?: number,
 ) => c.call<TaskQueryResult[]>('task_query', { task_data_query: { condition: conditions } }, timeoutMs)
+
+export interface CrontabEntry {
+  id: number
+  name: string
+  enable: boolean
+  cron_expression: string
+  cron_type: { agent?: [string[], Record<string, unknown>]; server?: unknown }
+  last_run_time: number | null
+}
+
+export const crontabGet = (c: RpcClient) =>
+  c.call<CrontabEntry[]>('crontab_get', {})
