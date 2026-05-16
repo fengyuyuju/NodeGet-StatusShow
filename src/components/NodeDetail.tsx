@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowUp, Eye, EyeOff, Scissors } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { ArrowDown, ArrowLeft, ArrowUp, Eye, EyeOff, Maximize2, Minimize2, Scissors } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -402,7 +403,20 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   const [hovered, setHovered] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('avg')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [maximized, setMaximized] = useState(false)
   const empty = series.every(s => s.points.length === 0)
+
+  useEffect(() => {
+    if (!maximized) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setMaximized(false)
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
+  }, [maximized])
 
   const chartData = useMemo(() => {
     const set = new Set<number>()
@@ -537,19 +551,11 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
       return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100], clippedCount: 0 }
     }
-    const range = max - min || 1
-    const rawStep = range / 4
-    const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
-    const normalized = rawStep / magnitude
-    const niceStep = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10
-    const step = niceStep * magnitude
-    const niceMin = Math.floor(min / step) * step
-    const niceMax = Math.ceil(max / step) * step
-    const ticks: number[] = []
-    for (let t = niceMin; t <= niceMax + step / 2; t += step) {
-      ticks.push(Math.round(t))
-    }
-    return { yDomain: [Math.max(0, niceMin), niceMax] as [number, number], yTicks: ticks, clippedCount }
+    const step = (max - min) / 3
+    const yTicks = [min, min + step, min + 2 * step, max].map(v => Math.round(v * 10) / 10)
+    const pad = (max - min) * 0.05
+    const yDomain: [number, number] = [Math.max(0, min - pad), max + pad]
+    return { yDomain, yTicks, clippedCount }
   }, [displaySeries, series, caps, hidden, hovered, peakClipping])
 
   const timeoutMarks = useMemo(() => {
@@ -575,222 +581,258 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
       return next
     })
 
-  return (
-    <Card className="p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-          {title} · 近 {rangeLabel}
-        </div>
-        <div className="flex gap-1 items-center">
+  const toolbarRow = (
+    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+        {title} · 近 {rangeLabel}
+      </div>
+      <div className="flex gap-1 items-center">
+        <button
+          onClick={() => setHidden(new Set())}
+          className="p-1 rounded transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
+          title="全部显示"
+        >
+          <Eye className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => setHidden(new Set(series.map(s => s.name)))}
+          className="p-1 rounded transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
+          title="全部隐藏"
+        >
+          <EyeOff className="w-3.5 h-3.5" />
+        </button>
+        <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
+        <button
+          type="button"
+          onClick={() => setPeakClipping(v => !v)}
+          aria-pressed={peakClipping}
+          aria-label="切换延迟峰值裁剪显示"
+          className={cn(
+            'p-1 rounded transition-colors',
+            peakClipping
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80',
+          )}
+          title="峰值裁剪：裁剪极端延迟波动以观察主体趋势"
+        >
+          <Scissors className="w-3 h-3" />
+        </button>
+        <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
+        {LATENCY_RANGES.map(r => (
           <button
-            onClick={() => setHidden(new Set())}
-            className="p-1 rounded transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
-            title="全部显示"
-          >
-            <Eye className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setHidden(new Set(series.map(s => s.name)))}
-            className="p-1 rounded transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
-            title="全部隐藏"
-          >
-            <EyeOff className="w-3.5 h-3.5" />
-          </button>
-          <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={() => setPeakClipping(v => !v)}
-            aria-pressed={peakClipping}
-            aria-label="切换延迟峰值裁剪显示"
+            key={r.key}
+            onClick={() => onRangeChange(r.key)}
             className={cn(
-              'p-1 rounded transition-colors',
-              peakClipping
+              'px-2 py-0.5 text-[11px] rounded transition-colors',
+              range === r.key
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80',
             )}
-            title="峰值裁剪：裁剪极端延迟波动以观察主体趋势"
           >
-            <Scissors className="w-3 h-3" />
+            {r.label}
           </button>
-          <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
-          {LATENCY_RANGES.map(r => (
-            <button
-              key={r.key}
-              onClick={() => onRangeChange(r.key)}
-              className={cn(
-                'px-2 py-0.5 text-[11px] rounded transition-colors',
-                range === r.key
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        ))}
+        <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
+        <button
+          onClick={() => setMaximized(v => !v)}
+          className="p-1 rounded transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
+          title={maximized ? '缩小' : '最大化图表'}
+          aria-label={maximized ? '缩小图表' : '最大化图表'}
+        >
+          {maximized
+            ? <Minimize2 className="w-3 h-3" />
+            : <Maximize2 className="w-3 h-3" />
+          }
+        </button>
       </div>
-      <div className="relative h-60">
-        {empty ? (
-          <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-            {loading ? '加载中…' : `暂无 ${type} 数据`}
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
-              <XAxis
-                dataKey="t"
-                type="number"
-                domain={['dataMin', 'dataMax']}
-                scale="time"
-                tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                tick={{ fontSize: 11 }}
-                stroke="hsl(var(--muted-foreground))"
-                ticks={xTicks}
-                interval={0}
-              />
-              <YAxis
-                key={`${yDomain[0]}-${yDomain[1]}`}
-                tickFormatter={v => `${Math.round(v)}ms`}
-                tick={{ fontSize: 11 }}
-                stroke="hsl(var(--muted-foreground))"
-                width={48}
-                domain={yDomain}
-                ticks={yTicks}
-                allowDataOverflow
-                minTickGap={24}
-              />
-              <Tooltip
-                content={<LatencyTooltip hidden={hidden} series={series} />}
-              />
+    </div>
+  )
+
+  const chartArea = (
+    <div className={cn('relative', maximized ? 'flex-1 min-h-0' : 'h-60')}>
+      {empty ? (
+        <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+          {loading ? '加载中…' : `暂无 ${type} 数据`}
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
+            <XAxis
+              dataKey="t"
+              type="number"
+              domain={['dataMin', 'dataMax']}
+              scale="time"
+              tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              tick={{ fontSize: 11 }}
+              stroke="hsl(var(--muted-foreground))"
+              ticks={xTicks}
+              interval={0}
+            />
+            <YAxis
+              key={`${yDomain[0]}-${yDomain[1]}`}
+              tickFormatter={v => `${Math.round(v)}ms`}
+              tick={{ fontSize: 11 }}
+              stroke="hsl(var(--muted-foreground))"
+              width={48}
+              domain={yDomain}
+              ticks={yTicks}
+              allowDataOverflow
+              minTickGap={24}
+            />
+            <Tooltip
+              content={<LatencyTooltip hidden={hidden} series={series} />}
+            />
+            <Line
+              dataKey="_ref"
+              stroke="transparent"
+              strokeWidth={0}
+              dot={false}
+              isAnimationActive={false}
+            />
+            {displaySeries.flatMap(s => {
+              const isVisible = hovered
+                ? s.name === hovered
+                : !hidden.has(s.name)
+              const color = isVisible ? s.color : 'transparent'
+              return [
+                <Line
+                  key={`${s.name}-normal`}
+                  data={s.normalLine}
+                  type="monotone"
+                  dataKey="value"
+                  name={s.name}
+                  stroke={color}
+                  strokeWidth={1.5}
+                  dot={false}
+                  isAnimationActive={false}
+                />,
+                <Line
+                  key={`${s.name}-timeout`}
+                  data={s.timeoutLine}
+                  type="monotone"
+                  dataKey="value"
+                  name={`${s.name}__timeout`}
+                  stroke={color}
+                  strokeWidth={1.5}
+                  strokeOpacity={0.2}
+                  dot={false}
+                  isAnimationActive={false}
+                />,
+              ]
+            })}
+            {timeoutMarks.length > 0 && (
               <Line
-                dataKey="_ref"
-                stroke="transparent"
-                strokeWidth={0}
-                dot={false}
+                data={timeoutMarks}
+                dataKey="y"
+                stroke="none"
+                dot={(props: any) => {
+                  const { cx, cy } = props
+                  if (cx == null || cy == null) return null
+                  return (
+                    <polygon
+                      points={`${cx},${cy - 5} ${cx - 3.5},${cy + 1} ${cx + 3.5},${cy + 1}`}
+                      fill={TIMEOUT_COLOR}
+                      opacity={0.8}
+                    />
+                  )
+                }}
                 isAnimationActive={false}
               />
-              {displaySeries.flatMap(s => {
-                const isVisible = hovered
-                  ? s.name === hovered
-                  : !hidden.has(s.name)
-                const color = isVisible ? s.color : 'transparent'
-                return [
-                  <Line
-                    key={`${s.name}-normal`}
-                    data={s.normalLine}
-                    type="monotone"
-                    dataKey="value"
-                    name={s.name}
-                    stroke={color}
-                    strokeWidth={1.5}
-                    dot={false}
-                    isAnimationActive={false}
-                  />,
-                  <Line
-                    key={`${s.name}-timeout`}
-                    data={s.timeoutLine}
-                    type="monotone"
-                    dataKey="value"
-                    name={`${s.name}__timeout`}
-                    stroke={color}
-                    strokeWidth={1.5}
-                    strokeOpacity={0.2}
-                    dot={false}
-                    isAnimationActive={false}
-                  />,
-                ]
-              })}
-              {timeoutMarks.length > 0 && (
-                <Line
-                  data={timeoutMarks}
-                  dataKey="y"
-                  stroke="none"
-                  dot={(props: any) => {
-                    const { cx, cy } = props
-                    if (cx == null || cy == null) return null
-                    return (
-                      <polygon
-                        points={`${cx},${cy - 5} ${cx - 3.5},${cy + 1} ${cx + 3.5},${cy + 1}`}
-                        fill={TIMEOUT_COLOR}
-                        opacity={0.8}
-                      />
-                    )
-                  }}
-                  isAnimationActive={false}
-                />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-        {loading && (
-          <div className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-        )}
-      </div>
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+      {loading && (
+        <div className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+      )}
+    </div>
+  )
 
-      <div className="mt-3 border-t pt-3">
-        <div className="flex items-center px-2 pb-1 text-[11px] text-muted-foreground">
-          <span className="flex-1">
-            来源
-          </span>
-          <SortHeader
-            label="平均延迟"
-            field="avg"
-            current={sortField}
-            dir={sortDir}
-            onClick={handleSort}
-            className="w-20"
-          />
-          <SortHeader
-            label="P95"
-            field="p95"
-            current={sortField}
-            dir={sortDir}
-            onClick={handleSort}
-            className="w-20"
-          />
-          <SortHeader
-            label="P99"
-            field="p99"
-            current={sortField}
-            dir={sortDir}
-            onClick={handleSort}
-            className="w-20"
-          />
-          <SortHeader
-            label="抖动"
-            field="jitter"
-            current={sortField}
-            dir={sortDir}
-            onClick={handleSort}
-            className="w-16"
-          />
-          <SortHeader
-            label="丢包率"
-            field="lossRate"
-            current={sortField}
-            dir={sortDir}
-            onClick={handleSort}
-            className="w-14"
-          />
-        </div>
-        {stats.length > 0 ? (
-          <div className="space-y-0.5" onMouseLeave={() => setHovered(null)}>
-            {stats.map(s => (
-              <LatencyStatsRow
-                key={s.name}
-                stat={s}
-                hidden={hidden.has(s.name)}
-                onToggle={() => toggle(s.name)}
-                onHover={() => setHovered(s.name)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="py-6 text-center text-xs text-muted-foreground">
-            {loading ? '加载中…' : `暂无 ${type} 数据`}
-          </div>
-        )}
+  const statsTable = (
+    <div className={cn('mt-3 border-t pt-3', maximized && 'shrink-0')}>
+      <div className="flex items-center px-2 pb-1 text-[11px] text-muted-foreground">
+        <span className="flex-1">
+          来源
+        </span>
+        <SortHeader
+          label="平均延迟"
+          field="avg"
+          current={sortField}
+          dir={sortDir}
+          onClick={handleSort}
+          className="w-20"
+        />
+        <SortHeader
+          label="P95"
+          field="p95"
+          current={sortField}
+          dir={sortDir}
+          onClick={handleSort}
+          className="w-20"
+        />
+        <SortHeader
+          label="P99"
+          field="p99"
+          current={sortField}
+          dir={sortDir}
+          onClick={handleSort}
+          className="w-20"
+        />
+        <SortHeader
+          label="抖动"
+          field="jitter"
+          current={sortField}
+          dir={sortDir}
+          onClick={handleSort}
+          className="w-16"
+        />
+        <SortHeader
+          label="丢包率"
+          field="lossRate"
+          current={sortField}
+          dir={sortDir}
+          onClick={handleSort}
+          className="w-14"
+        />
       </div>
+      {stats.length > 0 ? (
+        <div className="space-y-0.5" onMouseLeave={() => setHovered(null)}>
+          {stats.map(s => (
+            <LatencyStatsRow
+              key={s.name}
+              stat={s}
+              hidden={hidden.has(s.name)}
+              onToggle={() => toggle(s.name)}
+              onHover={() => setHovered(s.name)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="py-6 text-center text-xs text-muted-foreground">
+          {loading ? '加载中…' : `暂无 ${type} 数据`}
+        </div>
+      )}
+    </div>
+  )
+
+  if (maximized) {
+    return createPortal(
+      <div className="fixed inset-0 z-[60] bg-background/70 backdrop-blur animate-in fade-in duration-200 flex flex-col px-4 pb-4 pt-4">
+        <div className="flex-1 min-h-0 flex flex-col bg-background border border-border rounded-lg px-5 pb-4 pt-3 overflow-hidden">
+          {toolbarRow}
+          {chartArea}
+          {statsTable}
+        </div>
+      </div>,
+      document.body,
+    )
+  }
+
+  return (
+    <Card className="p-5">
+      {toolbarRow}
+      {chartArea}
+      {statsTable}
     </Card>
   )
 }
