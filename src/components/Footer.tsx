@@ -25,17 +25,12 @@ export function Footer({ text, repo, dist_page }: { text?: string, repo?: string
         <a href={repo} target="_blank" rel="noreferrer" className="hover:text-primary transition-colors mr-auto">
           {text || 'Powered by NodeGet'}
         </a>
-        <a href="download.html" target="_blank" rel="noreferrer" className="ml-2 flex items-center hover:text-primary transition-colors">
-          <HardDriveDownload className='inline-block w-3 mr-1' />
-          提取当前主题
-        </a>
+<span>v{__APP_VERSION__}</span>
         {outdated && (
-          <>
-            <a href={laststDist} target="_blank" rel="noreferrer" className="flex items-center hover:text-primary transition-colors ml-2 text-destructive">
-              <FolderSync className='inline-block w-3 mr-1' />
-              升级到 v{latest}
-            </a>
-          </>
+          <a href={laststDist} target="_blank" rel="noreferrer" className="flex items-center hover:text-primary transition-colors text-destructive">
+            <FolderSync className='inline-block w-3 mr-1' />
+            升级到 v{latest}
+          </a>
         )}
       </div>
     </footer>
