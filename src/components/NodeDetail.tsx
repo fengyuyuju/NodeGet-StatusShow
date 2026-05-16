@@ -653,7 +653,7 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
   )
 
   const chartArea = (
-    <div className={cn('relative', maximized ? 'flex-1 min-h-0' : 'h-60')}>
+    <div className={cn('relative', maximized ? 'h-[33.33vh] shrink-0' : 'h-60')}>
       {empty ? (
         <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
           {loading ? '加载中…' : `暂无 ${type} 数据`}
@@ -820,8 +820,8 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
 
   if (maximized) {
     return createPortal(
-      <div className="fixed inset-0 z-[60] bg-background/70 backdrop-blur animate-in fade-in duration-200 flex flex-col px-4 pb-4 pt-4">
-        <div className="flex-1 min-h-0 flex flex-col bg-background border border-border rounded-lg px-5 pb-4 pt-3 overflow-hidden">
+      <div className="fixed inset-0 z-[60] bg-background/70 backdrop-blur animate-in fade-in duration-200 flex items-center justify-center p-4" onClick={() => setMaximized(false)}>
+        <div className="max-h-[90vh] w-full flex flex-col bg-background border border-border rounded-lg px-5 pb-4 pt-3 overflow-hidden" onClick={e => e.stopPropagation()}>
           {toolbarRow}
           {chartArea}
           {statsTable}
