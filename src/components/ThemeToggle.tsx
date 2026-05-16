@@ -1,5 +1,4 @@
 import { Monitor, Moon, Sun } from 'lucide-react'
-import { Button } from './ui/button'
 import { useTheme } from '../hooks/useTheme'
 
 const ORDER = ['light', 'dark', 'system'] as const
@@ -15,14 +14,16 @@ export function ThemeToggle() {
   const next = ORDER[(ORDER.indexOf(preference) + 1) % ORDER.length]
 
   return (
-    <Button
-      variant="outline"
-      size="icon"
-      onClick={() => setPreference(next)}
-      aria-label={`切换到${META[next].label}`}
-      title={label}
-    >
-      <Icon className="h-4 w-4" />
-    </Button>
+    <div className="bg-muted p-1 rounded-md">
+      <button
+        type="button"
+        onClick={() => setPreference(next)}
+        aria-label={`切换到${META[next].label}`}
+        title={label}
+        className="relative z-10 inline-flex items-center justify-center px-3 py-1 text-sm font-medium rounded-sm transition-colors text-muted-foreground hover:text-foreground"
+      >
+        <Icon className="h-4 w-4" />
+      </button>
+    </div>
   )
 }

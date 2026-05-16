@@ -56,30 +56,25 @@ export function Navbar({ siteName, logo, query, onQuery, view, onView, sort, onS
           <span className="font-semibold tracking-wide truncate">{siteName}</span>
         </a>
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-          <div className="hidden sm:block">
+          <div className="hidden">
             <Search value={query} onChange={onQuery} />
           </div>
           <Button
             variant="outline"
             size="icon"
-            className="sm:hidden"
+            className="hidden"
             onClick={() => setSearchOpen(o => !o)}
             aria-label={searchOpen ? '关闭搜索' : '搜索'}
           >
             {searchOpen ? <X className="h-4 w-4" /> : <SearchIcon className="h-4 w-4" />}
           </Button>
-          <SortMenu value={sort} onChange={onSort} />
           <ViewToggle value={view} onChange={onView} />
+          <SortMenu value={sort} onChange={onSort} />
           <ThemeToggle />
         </div>
       </div>
 
-      <div
-        aria-hidden={!searchOpen}
-        className={`sm:hidden overflow-hidden transition-all duration-150 ease-out ${
-          searchOpen ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
-        }`}
-      >
+      <div className="hidden">
         <div className="px-4 pt-1 pb-3">
           <Search ref={inputRef} value={query} onChange={onQuery} className="w-full" />
         </div>

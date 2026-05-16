@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowUpDown, Check } from 'lucide-react'
-import { Button } from './ui/button'
 import type { Sort } from '../types'
 
 const OPTIONS: { value: Sort; label: string }[] = [
@@ -42,18 +41,17 @@ export function SortMenu({ value, onChange }: { value: Sort; onChange: (v: Sort)
   }, [open])
 
   return (
-    <div ref={ref} className="relative">
-      <Button
-        variant="outline"
-        size="sm"
+    <div ref={ref} className="relative bg-muted p-1 rounded-md">
+      <button
+        type="button"
         onClick={() => setOpen(o => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="gap-1.5"
+        className="relative z-10 inline-flex items-center justify-center gap-1.5 px-3 py-1 text-sm font-medium rounded-sm transition-colors text-muted-foreground hover:text-foreground"
       >
         <ArrowUpDown className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">{current.label}</span>
-      </Button>
+      </button>
       {show && (
         <div
           data-state={open ? 'open' : 'closed'}
