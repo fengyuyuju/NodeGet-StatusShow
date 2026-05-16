@@ -576,13 +576,15 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     setHovered(row?.dataset.source ?? null)
   }
 
-  const toggle = (name: string) =>
+  const toggle = (name: string) => {
+    setHovered(null)
     setHidden(prev => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
       else next.add(name)
       return next
     })
+  }
 
   const toolbarRow = (
     <div className="flex flex-wrap items-center justify-end gap-2 mb-3">
