@@ -587,8 +587,8 @@ function LatencyBlock({ title, rows, type, loading, range, onRangeChange }: Late
     })
 
   const toolbarRow = (
-    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+    <div className="flex flex-wrap items-center justify-end gap-2 mb-3">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground mr-auto">
         {title} · 近 {rangeLabel}
       </div>
       <div className="flex gap-1 items-center">
