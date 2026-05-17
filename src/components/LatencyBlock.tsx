@@ -215,6 +215,19 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
     return [...set].sort((a, b) => a - b).map(t => ({ t, y: yDomain[0] }))
   }, [series, yDomain, hidden, hovered])
 
+  const rangeRef = useRef<HTMLDivElement>(null)
+  const [indicator, setIndicator] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
+
+  useEffect(() => {
+    const el = rangeRef.current
+    if (!el) return
+    const btn = el.querySelector<HTMLElement>('[data-active="true"]')
+    if (!btn) return
+    const cr = el.getBoundingClientRect()
+    const br = btn.getBoundingClientRect()
+    setIndicator({ left: br.left - cr.left, width: br.width })
+  }, [range])
+
   const isTouchRef = useRef(false)
   useEffect(() => {
     isTouchRef.current = window.matchMedia('(pointer: coarse)').matches
@@ -240,62 +253,76 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
         {title}
       </div>
       <div className="flex gap-1 items-center">
-        <button
-          onClick={() => setHidden(new Set())}
-          className="p-1 rounded transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
-          title="全部显示"
-        >
-          <Eye className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => setHidden(new Set(series.map(s => s.name)))}
-          className="p-1 rounded transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
-          title="全部隐藏"
-        >
-          <EyeOff className="w-3.5 h-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={() => setPeakClipping(v => !v)}
-          aria-pressed={peakClipping}
-          aria-label="切换延迟峰值裁剪显示"
-          className={cn(
-            'p-1 rounded transition-colors',
-            peakClipping
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted text-muted-foreground hover:bg-muted/80',
-          )}
-          title="峰值裁剪：裁剪极端延迟波动以观察主体趋势"
-        >
-          <Scissors className="w-3 h-3" />
-        </button>
-        <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
-        {LATENCY_RANGES.map(r => (
+        <div className="bg-muted p-1 rounded-md">
           <button
-            key={r.key}
-            onClick={() => onRangeChange(r.key)}
-            className={cn(
-              'px-2 py-0.5 text-[11px] rounded transition-colors',
-              range === r.key
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80',
-            )}
+            onClick={() => setHidden(new Set())}
+            className="inline-flex items-center justify-center px-2 py-1 rounded-sm transition-colors text-muted-foreground hover:text-foreground"
+            title="全部显示"
           >
-            {r.label}
+            <Eye className="w-3.5 h-3.5" />
           </button>
-        ))}
-        <div className="w-px h-3 bg-border mx-1.5" aria-hidden="true" />
-        <button
-          onClick={() => setMaximized(v => !v)}
-          className="p-1 rounded transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
-          title={maximized ? '缩小' : '最大化图表'}
-          aria-label={maximized ? '缩小图表' : '最大化图表'}
-        >
-          {maximized
-            ? <Minimize2 className="w-3 h-3" />
-            : <Maximize2 className="w-3 h-3" />
-          }
-        </button>
+        </div>
+        <div className="bg-muted p-1 rounded-md">
+          <button
+            onClick={() => setHidden(new Set(series.map(s => s.name)))}
+            className="inline-flex items-center justify-center px-2 py-1 rounded-sm transition-colors text-muted-foreground hover:text-foreground"
+            title="全部隐藏"
+          >
+            <EyeOff className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className={cn('p-1 rounded-md transition-colors', peakClipping ? 'bg-primary' : 'bg-muted')}>
+          <button
+            type="button"
+            onClick={() => setPeakClipping(v => !v)}
+            aria-pressed={peakClipping}
+            aria-label="切换延迟峰值裁剪显示"
+            className={cn(
+              'inline-flex items-center justify-center px-2 py-1 rounded-sm transition-colors',
+              peakClipping ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
+            title="峰值裁剪：裁剪极端延迟波动以观察主体趋势"
+          >
+            <Scissors className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className="w-px h-4 bg-border mx-1" aria-hidden="true" />
+        <div ref={rangeRef} className="relative bg-muted p-1 rounded-md flex gap-0.5 items-center">
+          <div
+            aria-hidden
+            className="absolute top-1 rounded-sm bg-background shadow transition-all duration-200 ease-out"
+            style={{ left: indicator.left, width: indicator.width, height: 'calc(100% - 0.5rem)' }}
+          />
+          {LATENCY_RANGES.map(r => (
+            <button
+              key={r.key}
+              data-active={range === r.key}
+              onClick={() => onRangeChange(r.key)}
+              className={cn(
+                'relative z-10 px-2 py-1 text-[11px] rounded-sm transition-colors',
+                range === r.key
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <div className="w-px h-4 bg-border mx-1" aria-hidden="true" />
+        <div className="bg-muted p-1 rounded-md">
+          <button
+            onClick={() => setMaximized(v => !v)}
+            className="inline-flex items-center justify-center px-2 py-1 rounded-sm transition-colors text-muted-foreground hover:text-foreground"
+            title={maximized ? '缩小' : '最大化图表'}
+            aria-label={maximized ? '缩小图表' : '最大化图表'}
+          >
+            {maximized
+              ? <Minimize2 className="w-3.5 h-3.5" />
+              : <Maximize2 className="w-3.5 h-3.5" />
+            }
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -401,7 +428,7 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
   )
 
   const statsTable = (
-    <div className={cn('mt-3 border-t pt-3', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass || 'max-h-48 overflow-y-auto')}>
+    <div className={cn('mt-3 border-t pt-3', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
       <div className="flex items-center px-2 pb-1 text-[11px] text-muted-foreground">
         <span className="flex-1">
           来源

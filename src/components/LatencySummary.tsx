@@ -135,7 +135,6 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
               loading={loading}
               range={range}
               onRangeChange={setRange}
-              statsClass="max-h-[60vh] overflow-y-auto"
             />
           </div>
         )}
