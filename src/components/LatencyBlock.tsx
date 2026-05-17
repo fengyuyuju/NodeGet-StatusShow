@@ -429,7 +429,7 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
 
   const statsTable = (
     <div className={cn('mt-3 border-t pt-3 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
-      <div className="flex items-center gap-1.5 px-2 pb-1 text-[11px] text-muted-foreground">
+      <div className="flex items-center gap-1.5 px-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap">
         <span className="sticky left-0 pr-3 z-10 min-w-[140px]">
           来源
         </span>
