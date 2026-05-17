@@ -26,7 +26,7 @@ export function ViewToggle({ value, onChange }: { value: View; onChange: (v: Vie
       />
       {ITEMS.map(({ value: v, label, icon: Icon }) => (
         <Btn key={v} active={value === v} onClick={() => onChange(v)}>
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-4 w-4" />
           <span className="hidden sm:inline">{label}</span>
         </Btn>
       ))}
