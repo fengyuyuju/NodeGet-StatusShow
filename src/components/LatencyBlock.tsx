@@ -341,6 +341,7 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
               type="number"
               domain={['dataMin', 'dataMax']}
               scale="time"
+              allowDuplicatedCategory={false}
               tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               tick={{ fontSize: 11 }}
               stroke="hsl(var(--muted-foreground))"
@@ -358,14 +359,12 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
               allowDataOverflow
               minTickGap={24}
             />
-            <Tooltip
-              content={<LatencyTooltip hidden={hidden} series={series} />}
-            />
             <Line
               dataKey="_ref"
               stroke="transparent"
               strokeWidth={0}
               dot={false}
+              activeDot={false}
               isAnimationActive={false}
             />
             {displaySeries.flatMap(s => {
@@ -383,6 +382,7 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
                   stroke={s.color}
                   strokeWidth={1.5}
                   dot={false}
+                  activeDot={false}
                   isAnimationActive={false}
                 />,
                 <Line
@@ -395,10 +395,16 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
                   strokeWidth={1.5}
                   strokeOpacity={0.2}
                   dot={false}
+                  activeDot={false}
                   isAnimationActive={false}
                 />,
               ]
             })}
+            {/* Tooltip last = cursor renders on top of all lines */}
+            <Tooltip
+              content={<LatencyTooltip hidden={hidden} series={series} />}
+              cursor={<CursorDots yDomain={yDomain} series={series} hidden={hidden} hovered={hovered} />}
+            />
             {timeoutMarks.length > 0 && (
               <Line
                 data={timeoutMarks}
@@ -415,6 +421,7 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
                     />
                   )
                 }}
+                activeDot={false}
                 isAnimationActive={false}
               />
             )}
@@ -594,6 +601,66 @@ function SortHeader({ label, field, current, dir, onClick, className }: SortHead
   )
 }
 
+interface CursorDotsProps {
+  yDomain: [number, number]
+  series: ChartSeries[]
+  hidden: Set<string>
+  hovered: string | null
+  points?: { x: number; y: number }[]
+  payload?: { payload?: { t: number } }[]
+  top?: number
+  height?: number
+}
+
+function CursorDots(props: CursorDotsProps) {
+  const { yDomain, series, hidden, hovered, points: cursorPts, payload, top, height } = props
+  if (!cursorPts?.length) return null
+  const x = cursorPts[0].x
+  const label = payload?.[0]?.payload?.t
+  if (x == null || label == null) return null
+
+  const t = Number(top)
+  const h = Number(height)
+  const yMin = yDomain[0]
+  const yRange = yDomain[1] - yMin || 1
+  const toY = (v: number) => t + h * (1 - (v - yMin) / yRange)
+
+  const circles: React.ReactNode[] = []
+  for (const s of series) {
+    if (hovered ? s.name !== hovered : hidden.has(s.name)) continue
+
+    let lo: ChartSeriesPoint | null = null
+    let hi: ChartSeriesPoint | null = null
+    for (const pt of s.points) {
+      if (typeof pt.value !== 'number' || !Number.isFinite(pt.value)) continue
+      if (pt.t <= label) lo = pt
+      else { hi = pt; break }
+    }
+    if (!lo) continue
+
+    let value: number
+    if (lo.t === label) {
+      value = lo.value!
+    } else if (hi) {
+      value = lo.value! + (hi.value! - lo.value!) * (label - lo.t) / (hi.t - lo.t)
+    } else {
+      value = lo.value!
+    }
+    const cy = toY(value)
+    if (!Number.isFinite(cy)) continue
+    circles.push(
+      <circle key={s.name} cx={x} cy={cy} r={5} fill={s.color} stroke="#fff" strokeWidth={2} />,
+    )
+  }
+
+  return (
+    <g pointerEvents="none">
+      <line x1={x} y1={t} x2={x} y2={t + h} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+      {circles}
+    </g>
+  )
+}
+
 interface LatencyTooltipProps {
   active?: boolean
   label?: number
@@ -607,17 +674,23 @@ function LatencyTooltip({ active, label, hidden, series }: LatencyTooltipProps) 
   const rows: { name: string; color: string; value: number | null }[] = []
   for (const s of series) {
     if (hidden.has(s.name)) continue
-    let found = false
-    let value: number | null = null
-    for (let i = s.points.length - 1; i >= 0; i--) {
-      if (s.points[i].t <= label) {
-        const v = s.points[i].value
-        value = typeof v === 'number' && Number.isFinite(v) ? v : null
-        found = true
-        break
-      }
+    let lo: ChartSeriesPoint | null = null
+    let hi: ChartSeriesPoint | null = null
+    for (const pt of s.points) {
+      if (typeof pt.value !== 'number' || !Number.isFinite(pt.value)) continue
+      if (pt.t <= label) lo = pt
+      else { hi = pt; break }
     }
-    if (found) rows.push({ name: s.name, color: s.color, value })
+    if (!lo) continue
+    let value: number | null = null
+    if (lo.t === label) {
+      value = typeof lo.value === 'number' && Number.isFinite(lo.value) ? lo.value : null
+    } else if (hi) {
+      value = lo.value! + (hi.value! - lo.value!) * (label - lo.t) / (hi.t - lo.t)
+    } else {
+      value = lo.value!
+    }
+    rows.push({ name: s.name, color: s.color, value })
   }
   if (rows.length === 0) return null
   rows.sort((a, b) => {

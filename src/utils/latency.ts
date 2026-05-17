@@ -24,8 +24,11 @@ export function generateSpectrumColor(index: number, _total: number): string {
   return DISTINCT_COLORS[index % DISTINCT_COLORS.length]
 }
 
+const SNAP_INTERVAL = 20000
+
 function normalizeTs(ts: number) {
-  return ts < 1_000_000_000_000 ? ts * 1000 : ts
+  const ms = ts < 1_000_000_000_000 ? ts * 1000 : ts
+  return Math.round(ms / SNAP_INTERVAL) * SNAP_INTERVAL
 }
 
 function pickValue(row: TaskQueryResult, type: LatencyType): number | null {
@@ -59,7 +62,7 @@ interface Segment {
 }
 
 function buildLineData(segs: Segment[], type: 'normal' | 'timeout'): ChartSeriesPoint[] {
-  const data: ChartSeriesPoint[] = []
+  const out: ChartSeriesPoint[] = []
   let prevEndT: number | null = null
   let needGap = false
   for (const seg of segs) {
@@ -69,20 +72,19 @@ function buildLineData(segs: Segment[], type: 'normal' | 'timeout'): ChartSeries
       continue
     }
     if (prevEndT == null) {
-      if (needGap && data.length > 0) {
-        const gapT = (data[data.length - 1].t + seg.a.t) / 2
-        data.push({ t: gapT, value: null })
+      if (needGap && out.length > 0) {
+        out.push({ t: (out[out.length - 1].t + seg.a.t) / 2, value: null })
       }
       needGap = false
-      data.push({ t: seg.a.t, value: seg.a.value })
+      out.push({ t: seg.a.t, value: seg.a.value })
     } else if (type === 'timeout') {
-      data.push({ t: prevEndT, value: null })
-      data.push({ t: seg.a.t, value: seg.a.value })
+      out.push({ t: prevEndT, value: null })
+      out.push({ t: seg.a.t, value: seg.a.value })
     }
-    data.push({ t: seg.b.t, value: seg.b.value })
+    out.push({ t: seg.b.t, value: seg.b.value })
     prevEndT = seg.b.t
   }
-  return data
+  return out
 }
 
 export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
@@ -104,7 +106,7 @@ export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
 
     const validIdx: number[] = []
     for (let i = 0; i < points.length; i++) {
-      if (typeof points[i].value === 'number') validIdx.push(i)
+      if (typeof points[i].value === 'number' && Number.isFinite(points[i].value)) validIdx.push(i)
     }
 
     const segs: Segment[] = []
