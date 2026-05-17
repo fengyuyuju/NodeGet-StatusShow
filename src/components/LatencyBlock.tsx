@@ -428,9 +428,9 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
   )
 
   const statsTable = (
-    <div className={cn('mt-3 border-t pt-3', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
+    <div className={cn('mt-3 border-t pt-3 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
       <div className="flex items-center px-2 pb-1 text-[11px] text-muted-foreground">
-        <span className="flex-1">
+        <span className="sticky left-0 pr-3 z-10 min-w-[140px]">
           来源
         </span>
         <SortHeader
@@ -439,7 +439,7 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-20"
+          className="w-20 ml-auto"
         />
         <SortHeader
           label="P95"
@@ -531,18 +531,18 @@ function LatencyStatsRow({
       onClick={onToggle}
       data-source={name}
       className={cn(
-        'flex items-center px-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity hover:bg-muted/60',
+        'flex items-center px-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity group hover:bg-muted/60',
         hidden && 'opacity-35',
       )}
     >
-      <span className="flex items-center gap-2 flex-1 min-w-0">
+      <span className="flex items-center gap-2 sticky left-0 pr-3 min-w-[140px]">
         <span
           className="inline-block w-4 h-0.5 rounded-full shrink-0"
           style={{ background: color }}
         />
         <span className="truncate">{name}</span>
       </span>
-      <span className="w-20 text-right tabular-nums font-mono">
+      <span className="w-20 text-right tabular-nums font-mono ml-auto">
         {avg != null ? ms(avg) : '—'}
       </span>
       <span className="w-20 text-right tabular-nums font-mono">
