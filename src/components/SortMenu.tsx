@@ -18,6 +18,7 @@ export function SortMenu({ value, onChange }: { value: Sort; onChange: (v: Sort)
   const [open, setOpen] = useState(false)
   const [show, setShow] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const outsideFlag = useRef(false)
   const current = OPTIONS.find(o => o.value === value) ?? OPTIONS[0]
 
   useEffect(() => {
@@ -26,16 +27,28 @@ export function SortMenu({ value, onChange }: { value: Sort; onChange: (v: Sort)
 
   useEffect(() => {
     if (!open) return
-    const onDoc = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    const onMouseDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) {
+        outsideFlag.current = true
+        setOpen(false)
+      }
+    }
+    const onClickCapture = (e: MouseEvent) => {
+      if (outsideFlag.current) {
+        e.stopPropagation()
+        e.preventDefault()
+        outsideFlag.current = false
+      }
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
     }
-    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('click', onClickCapture, true)
     document.addEventListener('keydown', onKey)
     return () => {
-      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('click', onClickCapture, true)
       document.removeEventListener('keydown', onKey)
     }
   }, [open])
@@ -58,7 +71,7 @@ export function SortMenu({ value, onChange }: { value: Sort; onChange: (v: Sort)
           onAnimationEnd={() => {
             if (!open) setShow(false)
           }}
-          className="absolute right-0 mt-1 w-36 origin-top-right z-20 rounded-md border bg-popover shadow-md py-1 fill-mode-forwards data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+          className="absolute top-full right-0 mt-1 origin-top-right z-20 rounded-md border bg-popover shadow-md py-1 fill-mode-forwards data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
         >
           {OPTIONS.map(o => (
             <button
@@ -68,10 +81,10 @@ export function SortMenu({ value, onChange }: { value: Sort; onChange: (v: Sort)
                 onChange(o.value)
                 setOpen(false)
               }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 text-sm hover:bg-accent"
+              className="w-full flex items-center justify-between gap-1 px-2.5 py-1.5 text-sm hover:bg-accent"
             >
-              <span>{o.label}</span>
-              {o.value === value && <Check className="h-3.5 w-3.5" />}
+              <span className="w-3.5 shrink-0 inline-flex items-center justify-center">{o.value === value && <Check className="h-3.5 w-3.5" />}</span>
+              <span className="whitespace-nowrap">{o.label}</span>
             </button>
           ))}
         </div>
