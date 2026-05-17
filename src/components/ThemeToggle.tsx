@@ -14,7 +14,7 @@ export function ThemeToggle() {
   const next = ORDER[(ORDER.indexOf(preference) + 1) % ORDER.length]
 
   return (
-    <div className="bg-muted p-1 rounded-md">
+    <div className="bg-muted p-1 rounded-md flex">
       <button
         type="button"
         onClick={() => setPreference(next)}

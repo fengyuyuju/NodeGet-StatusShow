@@ -70,7 +70,7 @@ export function Navbar({ siteName, logo, query, onQuery, view, onView, sort, onS
           >
             {searchOpen ? <X className="h-4 w-4" /> : <SearchIcon className="h-4 w-4" />}
           </Button>
-          <div className="bg-muted p-1 rounded-md">
+          <div className="bg-muted p-1 rounded-md flex">
             <button
               type="button"
               onClick={() => {

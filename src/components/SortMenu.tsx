@@ -41,7 +41,7 @@ export function SortMenu({ value, onChange }: { value: Sort; onChange: (v: Sort)
   }, [open])
 
   return (
-    <div ref={ref} className="relative bg-muted p-1 rounded-md">
+    <div ref={ref} className="relative bg-muted p-1 rounded-md flex">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
