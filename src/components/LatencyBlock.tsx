@@ -37,7 +37,7 @@ export interface LatencyBlockProps {
 type SortField = 'avg' | 'p95' | 'p99' | 'jitter' | 'lossRate'
 type SortDir = 'asc' | 'desc'
 
-const ms = (v: number) => `${v.toFixed(1)} ms`
+const ms = (v: number) => v.toFixed(1)
 
 export function LatencyBlock({ title, rows, type, loading, range, onRangeChange, chartClass, statsClass }: LatencyBlockProps) {
   const { series } = useMemo(() => buildLatencyChart(rows, type), [rows, type])
@@ -429,12 +429,12 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
 
   const statsTable = (
     <div className={cn('mt-3 border-t pt-3 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
-      <div className="flex items-center px-2 pb-1 text-[11px] text-muted-foreground">
+      <div className="flex items-center gap-1.5 px-2 pb-1 text-[11px] text-muted-foreground">
         <span className="sticky left-0 pr-3 z-10 min-w-[140px]">
           来源
         </span>
         <SortHeader
-          label="平均延迟"
+          label="平均值"
           field="avg"
           current={sortField}
           dir={sortDir}
@@ -531,7 +531,7 @@ function LatencyStatsRow({
       onClick={onToggle}
       data-source={name}
       className={cn(
-        'flex items-center px-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity group hover:bg-muted/60',
+        'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity group hover:bg-muted/60',
         hidden && 'opacity-35',
       )}
     >
@@ -560,7 +560,7 @@ function LatencyStatsRow({
           lossRate >= 5 && 'text-red-500 font-medium',
         )}
       >
-        {lossRate.toFixed(1)}%
+        {lossRate.toFixed(1)}
       </span>
     </div>
   )
