@@ -57,7 +57,7 @@ export function Navbar({ siteName, logo, query, onQuery, view, onView, sort, onS
           {logo && <img src={logo} alt="" className="w-6 h-6 rounded shrink-0" />}
           <span className="font-semibold tracking-wide truncate">{siteName}</span>
         </a>
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="flex items-stretch gap-1.5 sm:gap-2.5 shrink-0">
           <div className="hidden">
             <Search value={query} onChange={onQuery} />
           </div>
@@ -70,7 +70,7 @@ export function Navbar({ siteName, logo, query, onQuery, view, onView, sort, onS
           >
             {searchOpen ? <X className="h-4 w-4" /> : <SearchIcon className="h-4 w-4" />}
           </Button>
-          <div className="bg-muted p-1 rounded-md flex">
+          <div className="bg-muted p-1 rounded-md flex items-center">
             <button
               type="button"
               onClick={() => {

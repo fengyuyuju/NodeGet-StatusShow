@@ -36,7 +36,7 @@ export function ViewToggle({ value, onChange }: { value: View; onChange: (v: Vie
   }, [open])
 
   return (
-    <div ref={ref} className="relative bg-muted p-1 rounded-md flex">
+    <div ref={ref} className="relative bg-muted p-1 rounded-md flex items-center">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
