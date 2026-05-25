@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Flag } from './Flag'
 import { StatusDot } from './StatusDot'
 import { bytes, pct, relativeAge } from '../utils/format'
-import { deriveUsage, displayName, distroLogo, virtLabel } from '../utils/derive'
+import { deriveUsage, displayName, virtLabel } from '../utils/derive'
 import { cn, loadColor } from '../utils/cn'
 import type { Node } from '../types'
 
@@ -22,7 +22,6 @@ export function NodeTable({ nodes, onOpen }: Props) {
           <TableRow>
             <TableHead className="w-8" />
             <TableHead>名称</TableHead>
-            <TableHead className="w-12 text-center">地区</TableHead>
             <TableHead>架构</TableHead>
             <TableHead>CPU</TableHead>
             <TableHead>内存</TableHead>
@@ -35,7 +34,6 @@ export function NodeTable({ nodes, onOpen }: Props) {
         <TableBody>
           {nodes.map(n => {
             const u = deriveUsage(n)
-            const logo = distroLogo(n)
             const virt = virtLabel(n)
             return (
               <TableRow
@@ -48,23 +46,9 @@ export function NodeTable({ nodes, onOpen }: Props) {
                 </TableCell>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-2 min-w-0">
-                    {logo && (
-                      <img
-                        src={logo}
-                        alt=""
-                        className="w-4 h-4 shrink-0 object-contain"
-                        loading="lazy"
-                      />
-                    )}
+                    <Flag code={n.meta?.region} className="shrink-0" />
                     <span className="truncate">{displayName(n)}</span>
                   </div>
-                </TableCell>
-                <TableCell className="text-center">
-                  {n.meta?.region ? (
-                    <Flag code={n.meta.region} />
-                  ) : (
-                    <span className="text-muted-foreground text-sm">—</span>
-                  )}
                 </TableCell>
                 <TableCell>
                   {virt ? (

@@ -5,7 +5,7 @@ import { Progress } from './ui/progress'
 import { Flag } from './Flag'
 import { StatusDot } from './StatusDot'
 import { bytes, pct, relativeAge, uptime } from '../utils/format'
-import { cpuLabel, deriveUsage, displayName, distroLogo, osLabel, virtLabel } from '../utils/derive'
+import { cpuLabel, deriveUsage, displayName, osLabel, virtLabel } from '../utils/derive'
 import { cn, loadColor } from '../utils/cn'
 import type { Node } from '../types'
 import type { ReactNode } from 'react'
@@ -14,7 +14,6 @@ export function NodeCard({ node }: { node: Node }) {
   const u = deriveUsage(node)
   const tags = Array.isArray(node.meta?.tags) ? node.meta.tags : []
   const os = osLabel(node)
-  const logo = distroLogo(node)
   const virt = virtLabel(node)
   const cpu = cpuLabel(node)
 
@@ -28,13 +27,10 @@ export function NodeCard({ node }: { node: Node }) {
         >
           <div className="flex items-center gap-2">
             <StatusDot online={node.online} />
-            {logo && (
-                <img src={logo} alt="" className="w-5 h-5 shrink-0 object-contain" loading="lazy" />
-            )}
+            <Flag code={node.meta?.region} className="shrink-0" />
             <span className="font-semibold flex-1 min-w-0 truncate" title={displayName(node)}>
             {displayName(node)}
           </span>
-            <Flag code={node.meta?.region} className="shrink-0" />
           </div>
 
           {(os || virt) && (
