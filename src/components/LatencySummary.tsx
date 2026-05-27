@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { LatencyBlock } from './LatencyBlock'
+import { Flag } from './Flag'
 import { useLatencySources, type CrontabSource } from '../hooks/useLatencySources'
 import { useSourceLatency } from '../hooks/useSourceLatency'
+import { useNodeAllLatency } from '../hooks/useNodeAllLatency'
 import { type LatencyRange } from '../hooks/useNodeLatency'
 import { displayName } from '../utils/derive'
 import type { BackendPool } from '../api/pool'
@@ -30,7 +32,9 @@ function remapByTarget(rows: TaskQueryResult[], nodes: Map<string, Node>): TaskQ
 }
 
 export function LatencySummary({ nodes, pool, onBack }: Props) {
+  const [active, setActive] = useState<'source' | 'node'>('node')
   const [selectedSource, setSelectedSource] = useState<CrontabSource | null>(null)
+  const [selectedNodeUuid, setSelectedNodeUuid] = useState<string | null>(null)
   const [range, setRange] = useState<LatencyRange>('1d')
   const headerRef = useRef<HTMLDivElement>(null)
   const [stuck, setStuck] = useState(false)
@@ -47,21 +51,57 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
 
   const { sources, loading: sourcesLoading } = useLatencySources(pool)
 
-  useEffect(() => {
-    if (!selectedSource && sources.length > 0) {
-      setSelectedSource(sources[0])
-    }
-  }, [sources, selectedSource])
-  const { pingData, tcpData, loading, errors } = useSourceLatency(
+  const nodeList = useMemo(
+    () =>
+      [...nodes.values()]
+        .filter(n => !n.meta?.hidden)
+        .sort((a, b) => (a.meta?.order ?? 0) - (b.meta?.order ?? 0) || displayName(a).localeCompare(displayName(b))),
+    [nodes],
+  )
+
+  const activeNodeUuid = active === 'node'
+    ? (selectedNodeUuid && nodeList.some(n => n.uuid === selectedNodeUuid) ? selectedNodeUuid : nodeList[0]?.uuid ?? null)
+    : null
+
+  const sourceLatency = useSourceLatency(
     pool,
-    selectedSource?.name ?? null,
+    active === 'source' ? selectedSource?.name ?? null : null,
     range,
   )
 
-  const merged = useMemo(
-    () => remapByTarget(mergePingTcp(pingData, tcpData), nodes),
-    [pingData, tcpData, nodes],
+  const nodeLatency = useNodeAllLatency(
+    pool,
+    activeNodeUuid,
+    range,
   )
+
+  const loading = active === 'source' ? sourceLatency.loading : nodeLatency.loading
+  const errors = active === 'source' ? sourceLatency.errors : nodeLatency.errors
+
+  const sourceRows = useMemo(
+    () => remapByTarget(mergePingTcp(sourceLatency.pingData, sourceLatency.tcpData), nodes),
+    [sourceLatency.pingData, sourceLatency.tcpData, nodes],
+  )
+
+  const nodeMerged = useMemo(
+    () => ({ ping: nodeLatency.pingData, tcp_ping: nodeLatency.tcpData }),
+    [nodeLatency.pingData, nodeLatency.tcpData],
+  )
+
+  const selectedNode = activeNodeUuid ? nodes.get(activeNodeUuid) ?? null : null
+  const currentTitle = active === 'source'
+    ? (selectedSource?.name ?? '')
+    : (selectedNode ? displayName(selectedNode) : '')
+
+  const pickSource = (s: CrontabSource) => {
+    setActive('source')
+    setSelectedSource(s)
+  }
+
+  const pickNode = (uuid: string) => {
+    setActive('node')
+    setSelectedNodeUuid(uuid)
+  }
 
   return (
     <div className="flex-1">
@@ -86,58 +126,78 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
       </div>
 
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-3 space-y-4">
-        {sourcesLoading ? (
-          <div className="py-12 flex items-center justify-center text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" /> 加载 Crontab 任务…
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {sources.map(s => (
-              <button
-                key={s.name}
-                onClick={() => setSelectedSource(s)}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border transition-colors ${
-                  s.name === selectedSource?.name
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-card hover:bg-accent border-border'
-                }`}
-              >
-                <span className="truncate max-w-[200px]">{s.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {nodeList.map(n => (
+            <button
+              key={n.uuid}
+              onClick={() => pickNode(n.uuid)}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                active === 'node' && n.uuid === activeNodeUuid
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card hover:bg-accent border-border'
+              }`}
+            >
+              <Flag code={n.meta?.region} className="w-4 h-2.5" />
+              <span className="truncate max-w-[150px]">{displayName(n)}</span>
+            </button>
+          ))}
+        </div>
 
-        {!selectedSource ? (
-          <div className="py-32 text-center text-sm text-muted-foreground">
-            暂无数据
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {errors.length > 0 && (
-              <div className="rounded-md border border-orange-500/30 bg-orange-500/5 px-4 py-3 text-sm text-orange-600 dark:text-orange-400">
-                <span className="font-medium">部分后端查询失败：</span>
-                <ul className="list-disc pl-5 mt-1 space-y-0.5">
-                  {errors.map((e, i) => (
-                    <li key={i}>
-                      <b>{e.source}</b>：{e.error instanceof Error ? e.error.message : String(e.error)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+        <hr className="border-border/50" />
 
+        <div className="flex flex-wrap gap-2">
+          {sourcesLoading ? (
+            <div className="flex items-center text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" /> 加载中…
+            </div>
+          ) : sources.map(s => (
+            <button
+              key={s.name}
+              onClick={() => pickSource(s)}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                active === 'source' && s.name === selectedSource?.name
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card hover:bg-accent border-border'
+              }`}
+            >
+              <span className="truncate max-w-[200px]">{s.name}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-6">
+          {errors.length > 0 && (
+            <div className="rounded-md border border-orange-500/30 bg-orange-500/5 px-4 py-3 text-sm text-orange-600 dark:text-orange-400">
+              <span className="font-medium">部分后端查询失败：</span>
+              <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                {errors.map((e, i) => (
+                  <li key={i}>
+                    <b>{e.source}</b>：{e.error instanceof Error ? e.error.message : String(e.error)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {active === 'source' ? (
             <LatencyBlock
-              key={selectedSource.name}
-              title={selectedSource.name}
-              rows={merged}
+              title={currentTitle}
+              rows={sourceRows}
               type="ping"
               loading={loading}
               range={range}
               onRangeChange={setRange}
             />
-          </div>
-        )}
+          ) : (
+            <LatencyBlock
+              title={currentTitle}
+              merged={nodeMerged}
+              loading={loading}
+              range={range}
+              onRangeChange={setRange}
+            />
+          )}
+        </div>
       </main>
     </div>
   )
