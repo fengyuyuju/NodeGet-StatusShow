@@ -131,7 +131,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
             <button
               key={n.uuid}
               onClick={() => pickNode(n.uuid)}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors ${
                 active === 'node' && n.uuid === activeNodeUuid
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-card hover:bg-accent border-border'
@@ -154,7 +154,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
             <button
               key={s.name}
               onClick={() => pickSource(s)}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors ${
                 active === 'source' && s.name === selectedSource?.name
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-card hover:bg-accent border-border'
