@@ -372,7 +372,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
               tickFormatter={v => `${Math.round(v)}`}
               tick={{ fontSize: 11 }}
               stroke="hsl(var(--muted-foreground))"
-              width={36}
+              width={32}
               domain={yDomain}
               ticks={yTicks}
               allowDataOverflow
