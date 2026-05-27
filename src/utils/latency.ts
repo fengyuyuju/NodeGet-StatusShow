@@ -125,16 +125,59 @@ export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
       })
     }
 
+    const normalLine = downsampleSeries(buildLineData(segs, 'normal'))
+    const timeoutLine = downsampleSeries(buildLineData(segs, 'timeout'))
     return {
       name,
       color: generateSpectrumColor(idx, total),
       points,
-      normalLine: buildLineData(segs, 'normal'),
-      timeoutLine: buildLineData(segs, 'timeout'),
+      normalLine,
+      timeoutLine,
     }
   })
 
   return { series }
+}
+
+const MAX_CHART_POINTS = 400
+
+export function downsampleSeries(data: ChartSeriesPoint[], threshold: number = MAX_CHART_POINTS): ChartSeriesPoint[] {
+  if (data.length <= threshold) return data
+
+  const segments: { points: ChartSeriesPoint[]; length: number }[] = []
+  let cur: ChartSeriesPoint[] = []
+  for (const pt of data) {
+    if (pt.value == null) {
+      if (cur.length > 0) {
+        segments.push({ points: cur, length: cur.length })
+        cur = []
+      }
+    } else {
+      cur.push(pt)
+    }
+  }
+  if (cur.length > 0) segments.push({ points: cur, length: cur.length })
+
+  const totalLen = segments.reduce((s, seg) => s + seg.length, 0)
+  const out: ChartSeriesPoint[] = []
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i]
+    const target = Math.max(2, Math.round(threshold * seg.length / totalLen))
+    const stride = seg.length / target
+    const sampled: ChartSeriesPoint[] = [seg.points[0]]
+    for (let j = 1; j < seg.length - 1; j++) {
+      if (Math.round(j / stride) !== Math.round((j - 1) / stride)) {
+        sampled.push(seg.points[j])
+      }
+    }
+    if (seg.length > 1) sampled.push(seg.points[seg.length - 1])
+    out.push(...sampled)
+    if (i < segments.length - 1) {
+      const mid = (sampled[sampled.length - 1].t + segments[i + 1].points[0].t) / 2
+      out.push({ t: mid, value: null })
+    }
+  }
+  return out
 }
 
 export interface LatencyStats {

@@ -395,11 +395,11 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
                 <Line
                   key={`${s.name}-normal`}
                   data={s.normalLine}
-                  type="monotone"
+                  type="linear"
                   dataKey="value"
                   name={s.name}
                   stroke={s.color}
-                  strokeWidth={1.5}
+                  strokeWidth={1}
                   dot={false}
                   activeDot={false}
                   isAnimationActive={false}
@@ -407,11 +407,11 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
                 <Line
                   key={`${s.name}-timeout`}
                   data={s.timeoutLine}
-                  type="monotone"
+                  type="linear"
                   dataKey="value"
                   name={`${s.name}__timeout`}
                   stroke={s.color}
-                  strokeWidth={1.5}
+                  strokeWidth={1}
                   strokeOpacity={0.2}
                   dot={false}
                   activeDot={false}
