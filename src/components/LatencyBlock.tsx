@@ -421,8 +421,8 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
             })}
             {/* Tooltip last = cursor renders on top of all lines */}
             <Tooltip
-              content={<LatencyTooltip hidden={hidden} series={series} range={range} />}
-              cursor={<CursorDots yDomain={yDomain} series={series} hidden={hidden} hovered={hovered} />}
+              content={<LatencyTooltip hidden={hidden} series={displaySeries} range={range} />}
+              cursor={<CursorDots yDomain={yDomain} series={displaySeries} hidden={hidden} hovered={hovered} />}
             />
             {timeoutMarks.length > 0 && (
               <Line
@@ -650,12 +650,20 @@ function CursorDots(props: CursorDotsProps) {
 
     let lo: ChartSeriesPoint | null = null
     let hi: ChartSeriesPoint | null = null
-    for (const pt of s.points) {
+    for (const pt of s.normalLine) {
       if (typeof pt.value !== 'number' || !Number.isFinite(pt.value)) continue
       if (pt.t <= label) lo = pt
       else { hi = pt; break }
     }
     if (!lo) continue
+
+    let inGap = false
+    if (hi) {
+      for (const pt of s.normalLine) {
+        if (pt.value == null && pt.t > lo.t && pt.t < hi.t) { inGap = true; break }
+      }
+    }
+    if (inGap) continue
 
     let value: number
     if (lo.t === label) {
@@ -696,14 +704,22 @@ function LatencyTooltip({ active, label, hidden, series, range }: LatencyTooltip
     if (hidden.has(s.name)) continue
     let lo: ChartSeriesPoint | null = null
     let hi: ChartSeriesPoint | null = null
-    for (const pt of s.points) {
+    for (const pt of s.normalLine) {
       if (typeof pt.value !== 'number' || !Number.isFinite(pt.value)) continue
       if (pt.t <= label) lo = pt
       else { hi = pt; break }
     }
     if (!lo) continue
+    let inGap = false
+    if (hi) {
+      for (const pt of s.normalLine) {
+        if (pt.value == null && pt.t > lo.t && pt.t < hi.t) { inGap = true; break }
+      }
+    }
     let value: number | null = null
-    if (lo.t === label) {
+    if (inGap) {
+      value = null
+    } else if (lo.t === label) {
       value = typeof lo.value === 'number' && Number.isFinite(lo.value) ? lo.value : null
     } else if (hi) {
       value = lo.value! + (hi.value! - lo.value!) * (label - lo.t) / (hi.t - lo.t)
@@ -748,7 +764,7 @@ function LatencyTooltip({ active, label, hidden, series, range }: LatencyTooltip
               r.value == null && 'text-muted-foreground',
             )}
           >
-            {r.value == null ? '超时' : ms(r.value)}
+            {r.value == null ? '-' : ms(r.value)}
           </span>
         </div>
       ))}
