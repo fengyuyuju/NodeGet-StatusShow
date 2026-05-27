@@ -13,8 +13,10 @@ import { Card } from './ui/card'
 import { cn } from '../utils/cn'
 import {
   buildLatencyChart,
+  buildMergedLatencyChart,
   computePeakClipCap,
   computeLatencyStats,
+  computeMergedLatencyStats,
   TIMEOUT_COLOR,
   type ChartSeries,
   type ChartSeriesPoint,
@@ -25,8 +27,9 @@ import type { LatencyType, TaskQueryResult } from '../types'
 
 export interface LatencyBlockProps {
   title: string
-  rows: TaskQueryResult[]
-  type: LatencyType
+  rows?: TaskQueryResult[]
+  type?: LatencyType
+  merged?: Partial<Record<LatencyType, TaskQueryResult[]>>
   loading: boolean
   range: LatencyRange
   onRangeChange: (r: LatencyRange) => void
@@ -39,9 +42,9 @@ type SortDir = 'asc' | 'desc'
 
 const ms = (v: number) => v.toFixed(1)
 
-export function LatencyBlock({ title, rows, type, loading, range, onRangeChange, chartClass, statsClass }: LatencyBlockProps) {
-  const { series } = useMemo(() => buildLatencyChart(rows, type), [rows, type])
-  const baseStats = useMemo(() => computeLatencyStats(rows, type), [rows, type])
+export function LatencyBlock({ title, rows, type, merged, loading, range, onRangeChange, chartClass, statsClass }: LatencyBlockProps) {
+  const { series } = useMemo(() => merged ? buildMergedLatencyChart(merged) : buildLatencyChart(rows!, type!), [merged, rows, type])
+  const baseStats = useMemo(() => merged ? computeMergedLatencyStats(merged) : computeLatencyStats(rows!, type!), [merged, rows, type])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   const [peakClipping, setPeakClipping] = useState(true)
   const [hovered, setHovered] = useState<string | null>(null)
@@ -49,6 +52,7 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [maximized, setMaximized] = useState(false)
   const empty = series.every(s => s.points.length === 0)
+  const emptyLabel = merged ? '延迟' : type
 
   useEffect(() => {
     if (!maximized) return
@@ -331,7 +335,7 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
     <div className={cn('relative', maximized ? 'h-[33.33vh] shrink-0' : chartClass || 'h-60')}>
       {empty ? (
         <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-          {loading ? '加载中…' : `暂无 ${type} 数据`}
+          {loading ? '加载中…' : `暂无 ${emptyLabel} 数据`}
         </div>
       ) : (
         <ResponsiveContainer width="100%" height="100%">
@@ -494,7 +498,7 @@ export function LatencyBlock({ title, rows, type, loading, range, onRangeChange,
         </div>
       ) : (
         <div className="py-6 text-center text-xs text-muted-foreground">
-          {loading ? '加载中…' : `暂无 ${type} 数据`}
+          {loading ? '加载中…' : `暂无 ${emptyLabel} 数据`}
         </div>
       )}
     </div>

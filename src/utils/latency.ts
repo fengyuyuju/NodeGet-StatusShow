@@ -20,6 +20,11 @@ const DISTINCT_COLORS = [
 
 export const TIMEOUT_COLOR = '#ef4444'
 
+export const TYPE_LABEL: Record<LatencyType, string> = {
+  ping: 'Ping',
+  tcp_ping: 'TCP Ping',
+}
+
 export function generateSpectrumColor(index: number, _total: number): string {
   return DISTINCT_COLORS[index % DISTINCT_COLORS.length]
 }
@@ -199,6 +204,67 @@ export function computeLatencyStats(rows: TaskQueryResult[], type: LatencyType):
     if (av !== bv) return av - bv
     const aj = a.jitter ?? Infinity
     const bj = b.jitter ?? Infinity
+    if (aj !== bj) return aj - bj
+    return a.lossRate - b.lossRate
+  })
+}
+
+export function buildMergedLatencyChart(dataMap: Partial<Record<LatencyType, TaskQueryResult[]>>) {
+  const types = (Object.keys(dataMap) as LatencyType[]).filter(t => dataMap[t]?.length)
+  const perType = new Map<LatencyType, ChartSeries[]>()
+  let totalSeries = 0
+  for (const type of types) {
+    const { series } = buildLatencyChart(dataMap[type]!, type)
+    perType.set(type, series)
+    totalSeries += series.length
+  }
+
+  let idx = 0
+  const allSeries: ChartSeries[] = []
+  for (const type of types) {
+    for (const s of perType.get(type) ?? []) {
+      allSeries.push({ ...s, color: generateSpectrumColor(idx, totalSeries) })
+      idx++
+    }
+  }
+  return { series: allSeries }
+}
+
+export function computeMergedLatencyStats(dataMap: Partial<Record<LatencyType, TaskQueryResult[]>>): LatencyStats[] {
+  const types = (Object.keys(dataMap) as LatencyType[]).filter(t => dataMap[t]?.length)
+  const entries: { type: LatencyType; name: string }[] = []
+  for (const type of types) {
+    for (const name of seriesNames(dataMap[type]!)) {
+      entries.push({ type, name })
+    }
+  }
+
+  const total = entries.length
+  const allStats = entries.map(({ type, name: sourceName }, idx) => {
+    const rows = dataMap[type]!
+    const list = rows.filter(r => (r.cron_source || '未知') === sourceName)
+    const vals: number[] = []
+    for (const r of list) {
+      const v = pickValue(r, type)
+      if (v != null) vals.push(v)
+    }
+
+    const color = generateSpectrumColor(idx, total)
+    const lossRate = list.length ? ((list.length - vals.length) / list.length) * 100 : 0
+    if (!vals.length) return { name: sourceName, color, avg: null, p95: null, p99: null, jitter: null, lossRate }
+
+    const avg = vals.reduce((s, v) => s + v, 0) / vals.length
+    const jitter = vals.length >= 2
+      ? vals.slice(1).reduce((s, v, i) => s + Math.abs(v - vals[i]), 0) / (vals.length - 1)
+      : null
+    const sorted = [...vals].sort((a, b) => a - b)
+    return { name: sourceName, color, avg, p95: percentile(sorted, 0.95), p99: percentile(sorted, 0.99), jitter, lossRate }
+  })
+
+  return allStats.sort((a, b) => {
+    const av = a.avg ?? Infinity, bv = b.avg ?? Infinity
+    if (av !== bv) return av - bv
+    const aj = a.jitter ?? Infinity, bj = b.jitter ?? Infinity
     if (aj !== bj) return aj - bj
     return a.lossRate - b.lossRate
   })

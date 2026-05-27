@@ -196,17 +196,8 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
         </Section>
 
         <LatencyBlock
-          title="TCP Ping"
-          rows={tcpData}
-          type="tcp_ping"
-          loading={latencyLoading}
-          range={latencyRange}
-          onRangeChange={setLatencyRange}
-        />
-        <LatencyBlock
-          title="Ping"
-          rows={pingData}
-          type="ping"
+          title="延迟"
+          merged={{ ping: pingData, tcp_ping: tcpData }}
           loading={latencyLoading}
           range={latencyRange}
           onRangeChange={setLatencyRange}
