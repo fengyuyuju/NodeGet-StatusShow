@@ -80,12 +80,23 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     const min = times[0]
     const max = times[times.length - 1]
     if (min === max) return [min]
+    if (range === '7d') {
+      const ticks: number[] = []
+      const d = new Date(min)
+      d.setHours(0, 0, 0, 0)
+      if (d.getTime() < min) d.setDate(d.getDate() + 1)
+      while (d.getTime() <= max) {
+        ticks.push(d.getTime())
+        d.setDate(d.getDate() + 1)
+      }
+      return ticks
+    }
     const count = 6
     const step = (max - min) / (count - 1)
     const ticks: number[] = []
     for (let i = 0; i < count; i++) ticks.push(min + step * i)
     return ticks
-  }, [chartData])
+  }, [chartData, range])
 
   const { displaySeries, caps } = useMemo(() => {
     if (!peakClipping) return { displaySeries: series, caps: new Map<string, number | null>() }
@@ -346,7 +357,11 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
               domain={['dataMin', 'dataMax']}
               scale="time"
               allowDuplicatedCategory={false}
-              tickFormatter={t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              tickFormatter={t =>
+                range === '7d'
+                  ? `${new Date(t).getMonth() + 1}-${String(new Date(t).getDate()).padStart(2, '0')}`
+                  : new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+              }
               tick={{ fontSize: 11 }}
               stroke="hsl(var(--muted-foreground))"
               ticks={xTicks}
@@ -354,10 +369,10 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
             />
             <YAxis
               key={`${yDomain[0]}-${yDomain[1]}`}
-              tickFormatter={v => `${Math.round(v)}ms`}
+              tickFormatter={v => `${Math.round(v)}`}
               tick={{ fontSize: 11 }}
               stroke="hsl(var(--muted-foreground))"
-              width={48}
+              width={36}
               domain={yDomain}
               ticks={yTicks}
               allowDataOverflow
@@ -406,7 +421,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
             })}
             {/* Tooltip last = cursor renders on top of all lines */}
             <Tooltip
-              content={<LatencyTooltip hidden={hidden} series={series} />}
+              content={<LatencyTooltip hidden={hidden} series={series} range={range} />}
               cursor={<CursorDots yDomain={yDomain} series={series} hidden={hidden} hovered={hovered} />}
             />
             {timeoutMarks.length > 0 && (
@@ -670,9 +685,10 @@ interface LatencyTooltipProps {
   label?: number
   hidden: Set<string>
   series: ChartSeries[]
+  range: LatencyRange
 }
 
-function LatencyTooltip({ active, label, hidden, series }: LatencyTooltipProps) {
+function LatencyTooltip({ active, label, hidden, series, range }: LatencyTooltipProps) {
   if (!active || label == null) return null
 
   const rows: { name: string; color: string; value: number | null }[] = []
@@ -715,7 +731,9 @@ function LatencyTooltip({ active, label, hidden, series }: LatencyTooltipProps) 
       }}
     >
       <div className="text-muted-foreground mb-1">
-        {new Date(label).toLocaleTimeString()}
+        {range === '7d'
+          ? `${new Date(label).getMonth() + 1}-${String(new Date(label).getDate()).padStart(2, '0')} ${new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}`
+          : new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}
       </div>
       {rows.map(r => (
         <div key={r.name} className="flex items-center gap-2">
