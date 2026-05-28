@@ -197,21 +197,14 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
 
   const [nameColWidth, setNameColWidth] = useState(80)
 
-  const longestName = useMemo(() => {
-    let max = ''
-    for (const s of stats) {
-      if (s.name.length > max.length) max = s.name
+  const measureAllRef = useCallback((container: HTMLDivElement | null) => {
+    if (!container) return
+    let maxWidth = 80
+    for (const child of container.children) {
+      maxWidth = Math.max(maxWidth, (child as HTMLElement).offsetWidth)
     }
-    return max
+    setNameColWidth(Math.max(80, Math.min(240, Math.ceil(maxWidth))))
   }, [stats])
-
-  const measureNameRef = useCallback(
-    (el: HTMLSpanElement | null) => {
-      if (!el) { setNameColWidth(80); return }
-      setNameColWidth(Math.max(80, Math.min(240, Math.ceil(el.offsetWidth))))
-    },
-    [longestName],
-  )
 
   const seriesPointsMap = useMemo(() => {
     const m = new Map<string, ChartSeriesPoint[]>()
@@ -524,16 +517,17 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           className="w-10"
         />
       </div>
-      {longestName && (
-        <span
-          ref={measureNameRef}
+      {stats.length > 0 && (
+        <div
+          ref={measureAllRef}
           aria-hidden="true"
-          className="flex items-center gap-2 pl-2 pr-3 text-xs"
-          style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none' }}
+          className="flex flex-col text-xs"
+          style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', width: 'max-content' }}
         >
-          <span className="inline-block w-4 h-0.5 rounded-full shrink-0" />
-          <span className="whitespace-nowrap">{longestName}</span>
-        </span>
+          {stats.map(s => (
+            <span key={s.name} className="flex items-center pl-2 pr-3 -mr-1 whitespace-nowrap font-semibold">{s.name}</span>
+          ))}
+        </div>
       )}
       {stats.length > 0 ? (
         <div onMouseMove={handleListMouseMove} onMouseLeave={() => setHovered(null)}>
@@ -651,12 +645,8 @@ function LatencyStatsRow({
         hidden && 'opacity-35',
       )}
     >
-      <span className={cn('sticky left-0 shrink-0 flex items-center gap-2 pl-2 pr-3 -mr-1', tableBg, 'group-hover:bg-muted')} style={{ width: nameColWidth }}>
-        <span
-          className="inline-block w-4 h-0.5 rounded-full shrink-0"
-          style={{ background: color }}
-        />
-        <span className="truncate">{name}</span>
+      <span className={cn('sticky left-0 shrink-0 flex items-center pl-2 pr-3 -mr-1', tableBg, 'group-hover:bg-muted')} style={{ width: nameColWidth }}>
+        <span className="truncate font-semibold" style={{ color }}>{name}</span>
       </span>
       <span className="flex-1 max-w-[300px] min-w-[120px] ml-auto">
         <QualityCanvas bars={bars} />
@@ -846,11 +836,7 @@ function LatencyTooltip({ active, label, hidden, series, range }: LatencyTooltip
       </div>
       {rows.map(r => (
         <div key={r.name} className="flex items-center gap-2">
-          <span
-            className="inline-block w-2 h-2 rounded-full shrink-0"
-            style={{ background: r.color }}
-          />
-          <span className="flex-1 truncate">{r.name}</span>
+          <span className="flex-1 truncate font-semibold" style={{ color: r.color }}>{r.name}</span>
           <span
             className={cn(
               'font-mono tabular-nums',
