@@ -44,13 +44,13 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
   const [stuck, setStuck] = useState(false)
   const [openDropdown, setOpenDropdown] = useState(false)
   const dropdownBtnRef = useRef<HTMLButtonElement>(null)
-  const [dropdownTop, setDropdownTop] = useState(0)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
-    if (!openDropdown) return
+    if (!openDropdown || !panelRef.current || !headerRef.current) return
     const updateTop = () => {
-      if (!headerRef.current) return
-      setDropdownTop(headerRef.current.getBoundingClientRect().bottom + MOBILE_DROPDOWN_GAP)
+      if (!headerRef.current || !panelRef.current) return
+      panelRef.current.style.top = `${headerRef.current.getBoundingClientRect().bottom + MOBILE_DROPDOWN_GAP}px`
     }
     updateTop()
     window.addEventListener('resize', updateTop)
@@ -155,7 +155,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
       {openDropdown && createPortal(
         <>
           <div className="fixed inset-0 z-[70]" onClick={() => setOpenDropdown(false)} />
-          <div className="fixed left-1 right-1 z-[80] bg-popover border border-border rounded-md shadow-lg p-2 max-h-[70vh] overflow-y-auto space-y-2" style={{ top: dropdownTop }}>
+          <div ref={panelRef} className="fixed left-1 right-1 z-[80] bg-popover border border-border rounded-md shadow-lg p-2 max-h-[70vh] overflow-y-auto space-y-2" style={{ top: 0 }}>
             <div>
               <div className="text-[10px] text-muted-foreground px-1 mb-1">节点</div>
               <div className="grid grid-cols-4 gap-0.5">
@@ -228,7 +228,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
         </div>
       </div>
 
-      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-3 space-y-4">
+      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-1 pb-3 md:py-3 space-y-0 md:space-y-4">
         {/* Desktop: nodes */}
         <div className="hidden md:flex flex-wrap gap-2">
           {nodeList.map(n => (
@@ -247,7 +247,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
           ))}
         </div>
 
-        <hr className="border-border/50" />
+        <hr className="hidden md:block border-border/50" />
 
         {/* Desktop: sources */}
         <div className="hidden md:flex flex-wrap gap-2">
