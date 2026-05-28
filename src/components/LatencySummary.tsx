@@ -110,14 +110,27 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
   const errors = active === 'source' ? sourceLatency.errors : nodeLatency.errors
 
   const sourceRows = useMemo(
-    () => remapByTarget(mergePingTcp(sourceLatency.pingData, sourceLatency.tcpData), nodes),
-    [sourceLatency.pingData, sourceLatency.tcpData, nodes],
+    () => {
+      const rows = mergePingTcp(sourceLatency.pingData, sourceLatency.tcpData)
+      if (sources.length === 0) return remapByTarget(rows, nodes)
+      const activeUuids = selectedSource?.uuids
+      if (!activeUuids) return remapByTarget(rows, nodes)
+      return remapByTarget(rows.filter(r => activeUuids.has(r.uuid)), nodes)
+    },
+    [sourceLatency.pingData, sourceLatency.tcpData, selectedSource, nodes, sources.length],
   )
 
-  const nodeMerged = useMemo(
-    () => ({ ping: nodeLatency.pingData, tcp_ping: nodeLatency.tcpData }),
-    [nodeLatency.pingData, nodeLatency.tcpData],
-  )
+  const nodeMerged = useMemo(() => {
+    if (sources.length === 0 || !activeNodeUuid)
+      return { ping: nodeLatency.pingData, tcp_ping: nodeLatency.tcpData }
+    const activeSourceNames = new Set<string>()
+    for (const s of sources) if (s.uuids.has(activeNodeUuid)) activeSourceNames.add(s.name)
+    if (!activeSourceNames.size) return { ping: [] as TaskQueryResult[], tcp_ping: [] as TaskQueryResult[] }
+    return {
+      ping: nodeLatency.pingData.filter(r => activeSourceNames.has(r.cron_source ?? '')),
+      tcp_ping: nodeLatency.tcpData.filter(r => activeSourceNames.has(r.cron_source ?? '')),
+    }
+  }, [nodeLatency.pingData, nodeLatency.tcpData, activeNodeUuid, sources])
 
   const selectedNode = activeNodeUuid ? nodes.get(activeNodeUuid) ?? null : null
   const currentTitle = active === 'source'

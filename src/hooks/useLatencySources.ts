@@ -7,6 +7,7 @@ export interface CrontabSource {
   id: number
   type: 'ping' | 'tcp_ping' | 'both'
   uuidCount: number
+  uuids: Set<string>
 }
 
 function extractSources(entries: CrontabEntry[]): CrontabSource[] {
@@ -24,7 +25,8 @@ function extractSources(entries: CrontabEntry[]): CrontabSource[] {
 
     const existing = map.get(e.name)
     if (existing) {
-      existing.uuidCount += uuids.length
+      for (const u of uuids) existing.uuids.add(u)
+      existing.uuidCount = existing.uuids.size
       if (hasPing && existing.type === 'tcp_ping') existing.type = 'both'
       if (hasTcp && existing.type === 'ping') existing.type = 'both'
     } else {
@@ -33,6 +35,7 @@ function extractSources(entries: CrontabEntry[]): CrontabSource[] {
         id: e.id,
         type: hasPing && hasTcp ? 'both' : hasPing ? 'ping' : 'tcp_ping',
         uuidCount: uuids.length,
+        uuids: new Set(uuids),
       })
     }
   }
