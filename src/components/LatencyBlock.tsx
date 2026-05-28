@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowDown, ArrowUp, Eye, EyeOff, Maximize2, Minimize2, Scissors } from 'lucide-react'
 import {
@@ -194,6 +194,24 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     })
     return sorted
   }, [baseStats, displaySeries, peakClipping, sortField, sortDir])
+
+  const [nameColWidth, setNameColWidth] = useState(80)
+
+  const longestName = useMemo(() => {
+    let max = ''
+    for (const s of stats) {
+      if (s.name.length > max.length) max = s.name
+    }
+    return max
+  }, [stats])
+
+  const measureNameRef = useCallback(
+    (el: HTMLSpanElement | null) => {
+      if (!el) { setNameColWidth(80); return }
+      setNameColWidth(Math.max(80, Math.min(240, Math.ceil(el.offsetWidth))))
+    },
+    [longestName],
+  )
 
   const seriesPointsMap = useMemo(() => {
     const m = new Map<string, ChartSeriesPoint[]>()
@@ -459,7 +477,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
   const statsTable = (
     <div className={cn('mt-3 border-t pt-3 pb-1.5 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
       <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[570px]', tableBg)}>
-        <span className={cn('sticky left-0 min-w-[140px] pl-2 pr-3 -mr-1', tableBg)}>
+        <span className={cn('sticky left-0 shrink-0 pl-2 pr-3 -mr-1', tableBg)} style={{ width: nameColWidth }}>
           来源
         </span>
         <span className="flex-1 max-w-[300px] min-w-[120px] ml-auto">
@@ -506,6 +524,17 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           className="w-12"
         />
       </div>
+      {longestName && (
+        <span
+          ref={measureNameRef}
+          aria-hidden="true"
+          className="flex items-center gap-2 pl-2 pr-3 text-xs"
+          style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none' }}
+        >
+          <span className="inline-block w-4 h-0.5 rounded-full shrink-0" />
+          <span className="whitespace-nowrap">{longestName}</span>
+        </span>
+      )}
       {stats.length > 0 ? (
         <div onMouseMove={handleListMouseMove} onMouseLeave={() => setHovered(null)}>
           {stats.map(s => (
@@ -516,6 +545,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
               hidden={hidden.has(s.name)}
               onToggle={() => toggle(s.name)}
               tableBg={tableBg}
+              nameColWidth={nameColWidth}
             />
           ))}
         </div>
@@ -599,12 +629,14 @@ function LatencyStatsRow({
   hidden,
   onToggle,
   tableBg,
+  nameColWidth,
 }: {
   stat: LatencyStats
   points: ChartSeriesPoint[]
   hidden: boolean
   onToggle: () => void
   tableBg: string
+  nameColWidth: number
 }) {
   const { name, color, avg, p95, p99, jitter, lossRate } = stat
   const bars = useMemo(() => points.map(p => p.value), [points])
@@ -619,7 +651,7 @@ function LatencyStatsRow({
         hidden && 'opacity-35',
       )}
     >
-      <span className={cn('sticky left-0 flex min-w-[140px] items-center gap-2 pl-2 pr-3 -mr-1', tableBg, 'group-hover:bg-muted')}>
+      <span className={cn('sticky left-0 shrink-0 flex items-center gap-2 pl-2 pr-3 -mr-1', tableBg, 'group-hover:bg-muted')} style={{ width: nameColWidth }}>
         <span
           className="inline-block w-4 h-0.5 rounded-full shrink-0"
           style={{ background: color }}
