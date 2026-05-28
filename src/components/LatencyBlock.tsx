@@ -42,6 +42,17 @@ type SortDir = 'asc' | 'desc'
 
 const ms = (v: number) => v.toFixed(1)
 
+const QUALITY_SEGMENTS = [
+  { max: 50, color: '#26a91e' },
+  { max: 100, color: '#43dd3e' },
+  { max: 200, color: '#bef663' },
+  { max: 250, color: '#f6ed44' },
+  { max: Infinity, color: '#f69833' },
+] as const
+const LOSS_Q_COLOR = '#e6170f'
+const CANVAS_H = 16
+const HEIGHT_CAP = 400
+
 export function LatencyBlock({ title, rows, type, merged, loading, range, onRangeChange, chartClass, statsClass }: LatencyBlockProps) {
   const { series } = useMemo(() => merged ? buildMergedLatencyChart(merged) : buildLatencyChart(rows!, type!), [merged, rows, type])
   const baseStats = useMemo(() => merged ? computeMergedLatencyStats(merged) : computeLatencyStats(rows!, type!), [merged, rows, type])
@@ -167,6 +178,12 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     return sorted
   }, [baseStats, displaySeries, peakClipping, sortField, sortDir])
 
+  const seriesPointsMap = useMemo(() => {
+    const m = new Map<string, ChartSeriesPoint[]>()
+    for (const s of series) m.set(s.name, s.points)
+    return m
+  }, [series])
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -216,19 +233,6 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     const yDomain: [number, number] = [min, max]
     return { yDomain, yTicks, clippedCount }
   }, [displaySeries, series, caps, hidden, hovered, peakClipping])
-
-  const timeoutMarks = useMemo(() => {
-    const visible = hovered
-      ? series.filter(s => s.name === hovered)
-      : series.filter(s => !hidden.has(s.name))
-    const set = new Set<number>()
-    for (const s of visible) {
-      for (const p of s.points) {
-        if (p.value == null) set.add(p.t)
-      }
-    }
-    return [...set].sort((a, b) => a - b).map(t => ({ t, y: yDomain[0] }))
-  }, [series, yDomain, hidden, hovered])
 
   const rangeRef = useRef<HTMLDivElement>(null)
   const [indicator, setIndicator] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
@@ -424,26 +428,6 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
               content={<LatencyTooltip hidden={hidden} series={displaySeries} range={range} />}
               cursor={<CursorDots yDomain={yDomain} series={displaySeries} hidden={hidden} hovered={hovered} />}
             />
-            {timeoutMarks.length > 0 && (
-              <Line
-                data={timeoutMarks}
-                dataKey="y"
-                stroke="none"
-                dot={(props: any) => {
-                  const { cx, cy } = props
-                  if (cx == null || cy == null) return null
-                  return (
-                    <polygon
-                      points={`${cx},${cy - 5} ${cx - 3.5},${cy + 1} ${cx + 3.5},${cy + 1}`}
-                      fill={TIMEOUT_COLOR}
-                      opacity={0.8}
-                    />
-                  )
-                }}
-                activeDot={false}
-                isAnimationActive={false}
-              />
-            )}
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -459,13 +443,16 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
         <span className="sticky left-0 pr-3 z-10 min-w-[140px]">
           来源
         </span>
+        <span className="flex-1 max-w-[300px] min-w-[80px] ml-auto">
+          质量
+        </span>
         <SortHeader
           label="平均值"
           field="avg"
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-20 ml-auto"
+          className="w-20"
         />
         <SortHeader
           label="P95"
@@ -506,6 +493,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
             <LatencyStatsRow
               key={s.name}
               stat={s}
+              points={seriesPointsMap.get(s.name) ?? []}
               hidden={hidden.has(s.name)}
               onToggle={() => toggle(s.name)}
             />
@@ -541,16 +529,63 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
   )
 }
 
+function QualityCanvas({ bars }: { bars: Array<number | null> }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = ref.current
+    if (!canvas) return
+    const draw = () => {
+      const w = canvas.offsetWidth
+      if (!w) return
+      canvas.width = w
+      canvas.height = CANVAS_H
+      const ctx = canvas.getContext('2d')!
+      ctx.clearRect(0, 0, w, CANVAS_H)
+      if (!bars.length) return
+      const maxBars = Math.floor(w)
+      const display = bars.slice(-maxBars)
+      const n = display.length
+      for (let i = 0; i < n; i++) {
+        const x = Math.round((i / n) * w)
+        const bw = Math.round(((i + 1) / n) * w) - x
+        if (bw <= 0) continue
+        const v = display[i]
+        let color: string, h: number
+        if (v == null) {
+          color = LOSS_Q_COLOR
+          h = CANVAS_H
+        } else {
+          const seg = QUALITY_SEGMENTS.find(s => v < s.max) ?? QUALITY_SEGMENTS[QUALITY_SEGMENTS.length - 1]
+          color = seg.color
+          h = Math.min(CANVAS_H, Math.max(1, Math.round((v / HEIGHT_CAP) * CANVAS_H)))
+        }
+        ctx.fillStyle = color
+        ctx.fillRect(x, CANVAS_H - h, bw, h)
+      }
+    }
+    draw()
+    const ro = new ResizeObserver(draw)
+    ro.observe(canvas)
+    return () => ro.disconnect()
+  }, [bars])
+
+  return <canvas ref={ref} className="block h-4 w-full" />
+}
+
 function LatencyStatsRow({
   stat,
+  points,
   hidden,
   onToggle,
 }: {
   stat: LatencyStats
+  points: ChartSeriesPoint[]
   hidden: boolean
   onToggle: () => void
 }) {
   const { name, color, avg, p95, p99, jitter, lossRate } = stat
+  const bars = useMemo(() => points.map(p => p.value), [points])
 
   return (
     <div
@@ -568,7 +603,10 @@ function LatencyStatsRow({
         />
         <span className="truncate">{name}</span>
       </span>
-      <span className="w-20 text-right tabular-nums font-mono ml-auto">
+      <span className="flex-1 max-w-[300px] min-w-[80px] ml-auto">
+        <QualityCanvas bars={bars} />
+      </span>
+      <span className="w-20 text-right tabular-nums font-mono">
         {avg != null ? ms(avg) : '—'}
       </span>
       <span className="w-20 text-right tabular-nums font-mono">
