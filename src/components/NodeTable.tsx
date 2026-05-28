@@ -90,9 +90,9 @@ export function NodeTable({ nodes, onOpen }: Props) {
 
 function CellBar({ value, hint }: { value: number | undefined; hint?: string | null }) {
   return (
-    <div className="flex items-center gap-2 min-w-[110px]" title={hint || ''}>
-      <Progress value={value} indicatorClassName={loadColor(value)} className="flex-1 h-1.5" />
-      <span className="font-mono text-xs w-12 text-right">{pct(value)}</span>
+    <div className="relative min-w-[110px]" title={hint || ''}>
+      <Progress value={value} indicatorClassName={loadColor(value)} className="h-1.5" />
+      <span className="absolute inset-0 flex items-center justify-center font-mono text-xs font-medium">{pct(value)}</span>
     </div>
   )
 }
