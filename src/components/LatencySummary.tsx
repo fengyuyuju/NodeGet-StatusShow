@@ -114,6 +114,76 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
     setSelectedNodeUuid(uuid)
   }
 
+  const mobileDropdown = (
+    <div className="relative">
+      <button
+        onClick={() => setOpenDropdown(!openDropdown)}
+        className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-border bg-card hover:bg-accent transition-colors"
+      >
+        {active === 'node' && selectedNode?.meta?.region && (
+          <Flag code={selectedNode.meta.region} className="w-3.5 h-2 shrink-0" />
+        )}
+        <span className="truncate max-w-[120px]">
+          {active === 'node'
+            ? (selectedNode ? displayName(selectedNode) : '选择')
+            : (selectedSource?.name || '选择')
+          }
+        </span>
+        <ChevronDown className={cn('h-3 w-3 transition-transform', openDropdown && 'rotate-180')} />
+      </button>
+      {openDropdown && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(false)} />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-2 w-[calc(100vw-0.5rem)] max-h-[70vh] overflow-y-auto space-y-2">
+            <div>
+              <div className="text-[10px] text-muted-foreground px-1 mb-1">节点</div>
+              <div className="grid grid-cols-4 gap-0.5">
+                {nodeList.map(n => (
+                  <button
+                    key={n.uuid}
+                    onClick={() => { pickNode(n.uuid); setOpenDropdown(false) }}
+                    className={`inline-flex items-center gap-1 px-1.5 py-1 text-[11px] rounded border transition-colors text-left ${
+                      active === 'node' && n.uuid === activeNodeUuid
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-card hover:bg-accent border-border'
+                    }`}
+                  >
+                    <Flag code={n.meta?.region} className="w-3.5 h-2 shrink-0" />
+                    <span className="truncate">{displayName(n)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-muted-foreground px-1 mb-1">来源</div>
+              {sourcesLoading ? (
+                <div className="flex items-center justify-center text-[11px] text-muted-foreground py-2">
+                  <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> 加载中…
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-0.5">
+                  {sources.map(s => (
+                    <button
+                      key={s.name}
+                      onClick={() => { pickSource(s); setOpenDropdown(false) }}
+                      className={`inline-flex items-center px-1.5 py-1 text-[11px] rounded border transition-colors text-left ${
+                        active === 'source' && s.name === selectedSource?.name
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-card hover:bg-accent border-border'
+                      }`}
+                    >
+                      <span className="truncate">{s.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+
   return (
     <div className="flex-1">
       <div
@@ -153,75 +223,6 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
               <span className="truncate max-w-[150px]">{displayName(n)}</span>
             </button>
           ))}
-        </div>
-
-        {/* Mobile: unified dropdown */}
-        <div className="md:hidden relative">
-          <button
-            onClick={() => setOpenDropdown(!openDropdown)}
-            className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-border bg-card hover:bg-accent transition-colors"
-          >
-            {active === 'node' && selectedNode?.meta?.region && (
-              <Flag code={selectedNode.meta.region} className="w-3.5 h-2 shrink-0" />
-            )}
-            <span className="truncate max-w-[120px]">
-              {active === 'node'
-                ? (selectedNode ? displayName(selectedNode) : '选择')
-                : (selectedSource?.name || '选择')
-              }
-            </span>
-            <ChevronDown className={cn('h-3 w-3 transition-transform', openDropdown && 'rotate-180')} />
-          </button>
-          {openDropdown && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(false)} />
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-2 w-[calc(100vw-0.5rem)] max-h-[70vh] overflow-y-auto space-y-2">
-                <div>
-                  <div className="text-[10px] text-muted-foreground px-1 mb-1">节点</div>
-                  <div className="grid grid-cols-4 gap-0.5">
-                    {nodeList.map(n => (
-                      <button
-                        key={n.uuid}
-                        onClick={() => { pickNode(n.uuid); setOpenDropdown(false) }}
-                        className={`inline-flex items-center gap-1 px-1.5 py-1 text-[11px] rounded border transition-colors text-left ${
-                          active === 'node' && n.uuid === activeNodeUuid
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-card hover:bg-accent border-border'
-                        }`}
-                      >
-                        <Flag code={n.meta?.region} className="w-3.5 h-2 shrink-0" />
-                        <span className="truncate">{displayName(n)}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-muted-foreground px-1 mb-1">来源</div>
-                  {sourcesLoading ? (
-                    <div className="flex items-center justify-center text-[11px] text-muted-foreground py-2">
-                      <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> 加载中…
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-4 gap-0.5">
-                      {sources.map(s => (
-                        <button
-                          key={s.name}
-                          onClick={() => { pickSource(s); setOpenDropdown(false) }}
-                          className={`inline-flex items-center px-1.5 py-1 text-[11px] rounded border transition-colors text-left ${
-                            active === 'source' && s.name === selectedSource?.name
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-card hover:bg-accent border-border'
-                          }`}
-                        >
-                          <span className="truncate">{s.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
         </div>
 
         <hr className="border-border/50" />
@@ -264,6 +265,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
           {active === 'source' ? (
             <LatencyBlock
               title={currentTitle}
+              titleSlot={mobileDropdown}
               rows={sourceRows}
               type="ping"
               loading={loading}
@@ -273,6 +275,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
           ) : (
             <LatencyBlock
               title={currentTitle}
+              titleSlot={mobileDropdown}
               merged={nodeMerged}
               loading={loading}
               range={range}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowDown, ArrowUp, Eye, EyeOff, Maximize2, Minimize2, Scissors } from 'lucide-react'
 import {
@@ -35,6 +35,7 @@ export interface LatencyBlockProps {
   onRangeChange: (r: LatencyRange) => void
   chartClass?: string
   statsClass?: string
+  titleSlot?: ReactNode
 }
 
 type SortField = 'avg' | 'p95' | 'p99' | 'jitter' | 'lossRate'
@@ -75,7 +76,7 @@ function downsampleBars(bars: Array<number | null>, maxBars: number): BarChunk[]
   return result
 }
 
-export function LatencyBlock({ title, rows, type, merged, loading, range, onRangeChange, chartClass, statsClass }: LatencyBlockProps) {
+export function LatencyBlock({ title, rows, type, merged, loading, range, onRangeChange, chartClass, statsClass, titleSlot }: LatencyBlockProps) {
   const { series } = useMemo(() => merged ? buildMergedLatencyChart(merged) : buildLatencyChart(rows!, type!), [merged, rows, type])
   const baseStats = useMemo(() => merged ? computeMergedLatencyStats(merged) : computeLatencyStats(rows!, type!), [merged, rows, type])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
@@ -301,9 +302,18 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
 
   const toolbarRow = (
     <div className="flex flex-wrap items-center justify-end gap-2 mb-3">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground mr-auto">
-        {title}
-      </div>
+      {titleSlot ? (
+        <>
+          <div className="hidden md:block text-xs uppercase tracking-wide text-muted-foreground mr-auto">
+            {title}
+          </div>
+          <div className="md:hidden mr-auto">{titleSlot}</div>
+        </>
+      ) : (
+        <div className="text-xs uppercase tracking-wide text-muted-foreground mr-auto">
+          {title}
+        </div>
+      )}
       <div className="flex gap-1 items-center">
         <div className="bg-muted p-1 rounded-md">
           <button
