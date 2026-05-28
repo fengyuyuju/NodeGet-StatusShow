@@ -437,10 +437,12 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     </div>
   )
 
+  const tableBg = maximized ? 'bg-background' : 'bg-card'
+
   const statsTable = (
     <div className={cn('mt-3 border-t pt-3 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
-      <div className="flex items-center gap-1 px-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[600px]">
-        <span className="pr-3 z-10 min-w-[140px]">
+      <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[600px]', tableBg)}>
+        <span className={cn('sticky left-[-6px] z-10 min-w-[140px] pl-[14px] pr-3 -mr-1 rounded-l-md', tableBg)}>
           来源
         </span>
         <span className="flex-1 max-w-[300px] min-w-[80px] ml-auto">
@@ -496,6 +498,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
               points={seriesPointsMap.get(s.name) ?? []}
               hidden={hidden.has(s.name)}
               onToggle={() => toggle(s.name)}
+              tableBg={tableBg}
             />
           ))}
         </div>
@@ -578,11 +581,13 @@ function LatencyStatsRow({
   points,
   hidden,
   onToggle,
+  tableBg,
 }: {
   stat: LatencyStats
   points: ChartSeriesPoint[]
   hidden: boolean
   onToggle: () => void
+  tableBg: string
 }) {
   const { name, color, avg, p95, p99, jitter, lossRate } = stat
   const bars = useMemo(() => points.map(p => p.value), [points])
@@ -592,11 +597,12 @@ function LatencyStatsRow({
       onClick={onToggle}
       data-source={name}
       className={cn(
-        'flex items-center gap-1 px-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity group hover:bg-muted/60 min-w-[600px]',
+        'flex items-center gap-1 pl-0 pr-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity group hover:bg-muted min-w-[600px]',
+        tableBg,
         hidden && 'opacity-35',
       )}
     >
-      <span className="flex items-center gap-2 pr-3 min-w-[140px]">
+      <span className={cn('sticky left-[-6px] z-10 flex min-w-[140px] items-center gap-2 pl-[14px] pr-3 -mr-1 rounded-l-md', tableBg, 'group-hover:bg-muted')}>
         <span
           className="inline-block w-4 h-0.5 rounded-full shrink-0"
           style={{ background: color }}
