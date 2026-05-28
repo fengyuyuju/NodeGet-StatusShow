@@ -318,7 +318,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
               data-active={range === r.key}
               onClick={() => onRangeChange(r.key)}
               className={cn(
-                'relative z-[1] px-2 py-1 text-[11px] rounded-sm transition-colors',
+                'relative z-10 px-2 py-1 text-[11px] rounded-sm transition-colors',
                 range === r.key
                   ? 'text-foreground'
                   : 'text-muted-foreground hover:text-foreground',
@@ -442,7 +442,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
   const statsTable = (
     <div className={cn('mt-3 border-t pt-3 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
       <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[570px]', tableBg)}>
-        <span className={cn('sticky left-0 z-[1] min-w-[140px] pl-2 pr-3 -mr-1', tableBg)}>
+        <span className={cn('sticky left-0 min-w-[140px] pl-2 pr-3 -mr-1', tableBg)}>
           来源
         </span>
         <span className="flex-1 max-w-[300px] min-w-[120px] ml-auto">
@@ -602,7 +602,7 @@ function LatencyStatsRow({
         hidden && 'opacity-35',
       )}
     >
-      <span className={cn('sticky left-0 z-[1] flex min-w-[140px] items-center gap-2 pl-2 pr-3 -mr-1', tableBg, 'group-hover:bg-muted')}>
+      <span className={cn('sticky left-0 flex min-w-[140px] items-center gap-2 pl-2 pr-3 -mr-1', tableBg, 'group-hover:bg-muted')}>
         <span
           className="inline-block w-4 h-0.5 rounded-full shrink-0"
           style={{ background: color }}
