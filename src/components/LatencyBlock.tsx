@@ -36,6 +36,7 @@ export interface LatencyBlockProps {
   chartClass?: string
   statsClass?: string
   titleSlot?: ReactNode
+  sourceLabel?: string
 }
 
 type SortField = 'avg' | 'p95' | 'p99' | 'jitter' | 'lossRate'
@@ -76,7 +77,7 @@ function downsampleBars(bars: Array<number | null>, maxBars: number): BarChunk[]
   return result
 }
 
-export function LatencyBlock({ title, rows, type, merged, loading, range, onRangeChange, chartClass, statsClass, titleSlot }: LatencyBlockProps) {
+export function LatencyBlock({ title, rows, type, merged, loading, range, onRangeChange, chartClass, statsClass, titleSlot, sourceLabel = '来源' }: LatencyBlockProps) {
   const { series } = useMemo(() => merged ? buildMergedLatencyChart(merged) : buildLatencyChart(rows!, type!), [merged, rows, type])
   const baseStats = useMemo(() => merged ? computeMergedLatencyStats(merged) : computeLatencyStats(rows!, type!), [merged, rows, type])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
@@ -486,7 +487,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     <div className={cn('mt-3 border-t pt-3 pb-1.5 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
       <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[530px]', tableBg)}>
         <span className={cn('sticky left-0 shrink-0 pl-2 pr-3 -mr-1', tableBg)} style={{ width: nameColWidth }}>
-          来源
+          {sourceLabel}
         </span>
         <span className="flex-1 max-w-[450px] min-w-[120px] ml-auto">
           质量

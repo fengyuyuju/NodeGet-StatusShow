@@ -289,6 +289,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
             <LatencyBlock
               title={currentTitle}
               titleSlot={mobileDropdown}
+              sourceLabel="来源"
               rows={sourceRows}
               type="ping"
               loading={loading}
@@ -299,6 +300,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
             <LatencyBlock
               title={currentTitle}
               titleSlot={mobileDropdown}
+              sourceLabel="任务"
               merged={nodeMerged}
               loading={loading}
               range={range}
