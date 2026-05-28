@@ -441,11 +441,11 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
 
   const statsTable = (
     <div className={cn('mt-3 border-t pt-3 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
-      <div className={cn('flex items-center gap-0.5 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[590px]', tableBg)}>
+      <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[560px]', tableBg)}>
         <span className={cn('sticky left-[-6px] z-10 min-w-[140px] pl-[14px] pr-3 -mr-1 rounded-l-md', tableBg)}>
           来源
         </span>
-        <span className="flex-1 max-w-[300px] min-w-[80px] ml-auto">
+        <span className="flex-1 max-w-[300px] min-w-[120px] ml-auto">
           质量
         </span>
         <SortHeader
@@ -454,7 +454,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-20"
+          className="w-16"
         />
         <SortHeader
           label="P95"
@@ -462,7 +462,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-20"
+          className="w-16"
         />
         <SortHeader
           label="P99"
@@ -470,7 +470,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-20"
+          className="w-16"
         />
         <SortHeader
           label="抖动"
@@ -478,7 +478,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-16"
+          className="w-12"
         />
         <SortHeader
           label="丢包率"
@@ -486,7 +486,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-14"
+          className="w-10"
         />
       </div>
       {stats.length > 0 ? (
@@ -597,7 +597,7 @@ function LatencyStatsRow({
       onClick={onToggle}
       data-source={name}
       className={cn(
-        'flex items-center gap-0.5 pl-0 pr-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity group hover:bg-muted min-w-[590px]',
+        'flex items-center gap-1 pl-0 pr-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity group hover:bg-muted min-w-[560px]',
         tableBg,
         hidden && 'opacity-35',
       )}
@@ -609,24 +609,24 @@ function LatencyStatsRow({
         />
         <span className="truncate">{name}</span>
       </span>
-      <span className="flex-1 max-w-[300px] min-w-[80px] ml-auto">
+      <span className="flex-1 max-w-[300px] min-w-[120px] ml-auto">
         <QualityCanvas bars={bars} />
       </span>
-      <span className="w-20 text-right tabular-nums font-mono">
+      <span className="w-16 text-right tabular-nums font-mono">
         {avg != null ? ms(avg) : '—'}
       </span>
-      <span className="w-20 text-right tabular-nums font-mono">
+      <span className="w-16 text-right tabular-nums font-mono">
         {p95 != null ? ms(p95) : '—'}
       </span>
-      <span className="w-20 text-right tabular-nums font-mono">
+      <span className="w-16 text-right tabular-nums font-mono">
         {p99 != null ? ms(p99) : '—'}
       </span>
-      <span className="w-16 text-right tabular-nums font-mono">
+      <span className="w-12 text-right tabular-nums font-mono">
         {jitter != null ? ms(jitter) : '—'}
       </span>
       <span
         className={cn(
-          'w-14 text-right tabular-nums font-mono',
+          'w-10 text-right tabular-nums font-mono',
           lossRate >= 5 && 'text-red-500 font-medium',
         )}
       >
