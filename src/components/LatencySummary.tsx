@@ -178,7 +178,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-2 w-[calc(100vw-0.5rem)] max-h-[70vh] overflow-y-auto space-y-2">
                 <div>
                   <div className="text-[10px] text-muted-foreground px-1 mb-1">节点</div>
-                  <div className="grid grid-cols-3 gap-0.5">
+                  <div className="grid grid-cols-4 gap-0.5">
                     {nodeList.map(n => (
                       <button
                         key={n.uuid}
@@ -202,7 +202,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
                       <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> 加载中…
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-0.5">
+                    <div className="grid grid-cols-4 gap-0.5">
                       {sources.map(s => (
                         <button
                           key={s.name}
