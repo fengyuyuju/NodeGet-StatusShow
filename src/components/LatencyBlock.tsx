@@ -53,19 +53,24 @@ const LOSS_Q_COLOR = '#e6170f'
 const CANVAS_H = 16
 const HEIGHT_CAP = 400
 
-function downsampleBars(bars: Array<number | null>, maxBars: number): Array<number | null> {
-  if (bars.length <= maxBars) return bars
+interface BarChunk { avg: number | null; loss: number }
+
+function downsampleBars(bars: Array<number | null>, maxBars: number): BarChunk[] {
+  if (bars.length <= maxBars) {
+    return bars.map(v => v == null ? { avg: null, loss: 1 } : { avg: v, loss: 0 })
+  }
   const chunkSize = bars.length / maxBars
-  const result: Array<number | null> = []
+  const result: BarChunk[] = []
   for (let i = 0; i < maxBars; i++) {
     const start = Math.round(i * chunkSize)
     const end = Math.round((i + 1) * chunkSize)
     const chunk = bars.slice(start, end)
-    if (chunk.some(v => v == null)) {
-      result.push(null)
-    } else {
-      result.push(chunk.reduce((s, v) => s + v!, 0) / chunk.length)
-    }
+    const valid = chunk.filter((v): v is number => v != null)
+    const loss = (chunk.length - valid.length) / chunk.length
+    result.push({
+      avg: valid.length > 0 ? valid.reduce((s, v) => s + v, 0) / valid.length : null,
+      loss,
+    })
   }
   return result
 }
@@ -594,18 +599,18 @@ function QualityCanvas({ bars }: { bars: Array<number | null> }) {
         const x = Math.round((i / n) * w)
         const bw = Math.round(((i + 1) / n) * w) - x
         if (bw <= 0) continue
-        const v = display[i]
-        let color: string, h: number
-        if (v == null) {
-          color = LOSS_Q_COLOR
-          h = CANVAS_H
-        } else {
-          const seg = QUALITY_SEGMENTS.find(s => v < s.max) ?? QUALITY_SEGMENTS[QUALITY_SEGMENTS.length - 1]
-          color = seg.color
-          h = Math.min(CANVAS_H, Math.max(1, Math.round((v / HEIGHT_CAP) * CANVAS_H)))
+        const c = display[i]
+        if (c.avg != null) {
+          const seg = QUALITY_SEGMENTS.find(s => c.avg < s.max) ?? QUALITY_SEGMENTS[QUALITY_SEGMENTS.length - 1]
+          const h = Math.min(CANVAS_H, Math.max(1, Math.round((c.avg / HEIGHT_CAP) * CANVAS_H)))
+          ctx.fillStyle = seg.color
+          ctx.fillRect(x, CANVAS_H - h, bw, h)
         }
-        ctx.fillStyle = color
-        ctx.fillRect(x, CANVAS_H - h, bw, h)
+        if (c.loss > 0) {
+          const h = Math.max(1, Math.round(c.loss * CANVAS_H))
+          ctx.fillStyle = LOSS_Q_COLOR
+          ctx.fillRect(x, CANVAS_H - h, bw, h)
+        }
       }
     }
     draw()
