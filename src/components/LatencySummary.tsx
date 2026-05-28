@@ -49,9 +49,8 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
   useLayoutEffect(() => {
     if (!openDropdown) return
     const updateTop = () => {
-      const btn = dropdownBtnRef.current
-      if (!btn) return
-      setDropdownTop(btn.getBoundingClientRect().bottom + MOBILE_DROPDOWN_GAP)
+      if (!headerRef.current) return
+      setDropdownTop(headerRef.current.getBoundingClientRect().bottom + MOBILE_DROPDOWN_GAP)
     }
     updateTop()
     window.addEventListener('resize', updateTop)
