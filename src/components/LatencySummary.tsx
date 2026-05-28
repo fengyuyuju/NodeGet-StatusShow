@@ -177,7 +177,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
               </div>
             </div>
             <div>
-              <div className="text-[10px] text-muted-foreground px-1 mb-1">来源</div>
+              <div className="text-[10px] text-muted-foreground px-1 mb-1">任务</div>
               {sourcesLoading ? (
                 <div className="flex items-center justify-center text-[11px] text-muted-foreground py-2">
                   <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> 加载中…
