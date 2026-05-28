@@ -476,7 +476,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
 
   const statsTable = (
     <div className={cn('mt-3 border-t pt-3 pb-1.5 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
-      <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[570px]', tableBg)}>
+      <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[530px]', tableBg)}>
         <span className={cn('sticky left-0 shrink-0 pl-2 pr-3 -mr-1', tableBg)} style={{ width: nameColWidth }}>
           来源
         </span>
@@ -646,7 +646,7 @@ function LatencyStatsRow({
       onClick={onToggle}
       data-source={name}
       className={cn(
-        'flex items-center gap-1 pl-0 pr-2 py-1 text-xs cursor-pointer select-none transition-opacity group hover:bg-muted min-w-[570px]',
+        'flex items-center gap-1 pl-0 pr-2 py-1 text-xs cursor-pointer select-none transition-opacity group hover:bg-muted min-w-[530px]',
         tableBg,
         hidden && 'opacity-35',
       )}
