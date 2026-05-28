@@ -175,7 +175,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
           {openDropdown && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(false)} />
-              <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-2 w-[calc(100vw-2rem)] max-w-xs max-h-[70vh] overflow-y-auto space-y-2">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-2 w-[calc(100vw-0.5rem)] max-h-[70vh] overflow-y-auto space-y-2">
                 <div>
                   <div className="text-[10px] text-muted-foreground px-1 mb-1">节点</div>
                   <div className="grid grid-cols-2 gap-0.5">
