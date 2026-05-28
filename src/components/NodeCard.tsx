@@ -54,9 +54,13 @@ export function NodeCard({ node }: { node: Node }) {
           </div>
 
           <div className="pt-2.5 border-t border-dashed font-mono text-xs text-muted-foreground space-y-1.5">
-            <div className="flex items-center gap-3">
-              <Stat icon={ArrowDown}>{bytes(u.netIn || 0)}/s</Stat>
-              <Stat icon={ArrowUp}>{bytes(u.netOut || 0)}/s</Stat>
+            <div className="flex items-center justify-between">
+              <span>{bytes(u.netIn || 0)}/s</span>
+              <span>{bytes(u.netOut || 0)}/s</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1">{bytes(node.dynamic?.total_received || 0)}<ArrowDown className="h-3 w-3" /></span>
+              <span className="inline-flex items-center gap-1"><ArrowUp className="h-3 w-3" />{bytes(node.dynamic?.total_transmitted || 0)}</span>
             </div>
             <div className="flex items-center gap-3">
               <Stat icon={Clock}>{uptime(u.uptime)}</Stat>
