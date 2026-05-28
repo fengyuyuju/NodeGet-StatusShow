@@ -164,6 +164,9 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
             <span className="text-muted-foreground">
               {active === 'node' ? '节点' : '来源'}
             </span>
+            {active === 'node' && selectedNode?.meta?.region && (
+              <Flag code={selectedNode.meta.region} className="w-3.5 h-2 shrink-0" />
+            )}
             <span className="truncate max-w-[100px]">
               {active === 'node'
                 ? (selectedNode ? displayName(selectedNode) : '选择')
