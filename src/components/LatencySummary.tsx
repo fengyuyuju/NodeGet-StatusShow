@@ -161,13 +161,10 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
             onClick={() => setOpenDropdown(!openDropdown)}
             className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-border bg-card hover:bg-accent transition-colors"
           >
-            <span className="text-muted-foreground">
-              {active === 'node' ? '节点' : '来源'}
-            </span>
             {active === 'node' && selectedNode?.meta?.region && (
               <Flag code={selectedNode.meta.region} className="w-3.5 h-2 shrink-0" />
             )}
-            <span className="truncate max-w-[100px]">
+            <span className="truncate max-w-[120px]">
               {active === 'node'
                 ? (selectedNode ? displayName(selectedNode) : '选择')
                 : (selectedSource?.name || '选择')
