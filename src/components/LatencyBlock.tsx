@@ -53,6 +53,23 @@ const LOSS_Q_COLOR = '#e6170f'
 const CANVAS_H = 16
 const HEIGHT_CAP = 400
 
+function downsampleBars(bars: Array<number | null>, maxBars: number): Array<number | null> {
+  if (bars.length <= maxBars) return bars
+  const chunkSize = bars.length / maxBars
+  const result: Array<number | null> = []
+  for (let i = 0; i < maxBars; i++) {
+    const start = Math.round(i * chunkSize)
+    const end = Math.round((i + 1) * chunkSize)
+    const chunk = bars.slice(start, end)
+    if (chunk.some(v => v == null)) {
+      result.push(null)
+    } else {
+      result.push(chunk.reduce((s, v) => s + v!, 0) / chunk.length)
+    }
+  }
+  return result
+}
+
 export function LatencyBlock({ title, rows, type, merged, loading, range, onRangeChange, chartClass, statsClass }: LatencyBlockProps) {
   const { series } = useMemo(() => merged ? buildMergedLatencyChart(merged) : buildLatencyChart(rows!, type!), [merged, rows, type])
   const baseStats = useMemo(() => merged ? computeMergedLatencyStats(merged) : computeLatencyStats(rows!, type!), [merged, rows, type])
@@ -547,7 +564,7 @@ function QualityCanvas({ bars }: { bars: Array<number | null> }) {
       ctx.clearRect(0, 0, w, CANVAS_H)
       if (!bars.length) return
       const maxBars = Math.floor(w)
-      const display = bars.slice(-maxBars)
+      const display = downsampleBars(bars, maxBars)
       const n = display.length
       for (let i = 0; i < n; i++) {
         const x = Math.round((i / n) * w)
