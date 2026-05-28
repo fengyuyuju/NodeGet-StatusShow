@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Loader2 } from 'lucide-react'
 import { LatencyBlock } from './LatencyBlock'
 import { Flag } from './Flag'
 import { useLatencySources, type CrontabSource } from '../hooks/useLatencySources'
@@ -7,6 +7,7 @@ import { useSourceLatency } from '../hooks/useSourceLatency'
 import { useNodeAllLatency } from '../hooks/useNodeAllLatency'
 import { type LatencyRange } from '../hooks/useNodeLatency'
 import { displayName } from '../utils/derive'
+import { cn } from '../utils/cn'
 import type { BackendPool } from '../api/pool'
 import type { Node, TaskQueryResult } from '../types'
 
@@ -38,6 +39,16 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
   const [range, setRange] = useState<LatencyRange>('1d')
   const headerRef = useRef<HTMLDivElement>(null)
   const [stuck, setStuck] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<'node' | 'source' | null>(null)
+
+  useEffect(() => {
+    if (!openDropdown) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenDropdown(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [openDropdown])
 
   useEffect(() => {
     const onScroll = () => {
@@ -126,7 +137,8 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
       </div>
 
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-3 space-y-4">
-        <div className="flex flex-wrap gap-2">
+        {/* Desktop: nodes */}
+        <div className="hidden md:flex flex-wrap gap-2">
           {nodeList.map(n => (
             <button
               key={n.uuid}
@@ -143,9 +155,47 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
           ))}
         </div>
 
+        {/* Mobile: node dropdown */}
+        <div className="md:hidden relative">
+          <button
+            onClick={() => setOpenDropdown(openDropdown === 'node' ? null : 'node')}
+            className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-border bg-card hover:bg-accent transition-colors"
+          >
+            <span className="text-muted-foreground">节点</span>
+            <span className="truncate max-w-[120px]">
+              {selectedNode ? displayName(selectedNode) : '选择'}
+            </span>
+            <ChevronDown className={cn('h-3 w-3 transition-transform', openDropdown === 'node' && 'rotate-180')} />
+          </button>
+          {openDropdown === 'node' && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)} />
+              <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-2 w-[calc(100vw-2rem)] max-w-sm max-h-64 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-1">
+                  {nodeList.map(n => (
+                    <button
+                      key={n.uuid}
+                      onClick={() => { pickNode(n.uuid); setOpenDropdown(null) }}
+                      className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors text-left ${
+                        active === 'node' && n.uuid === activeNodeUuid
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-card hover:bg-accent border-border'
+                      }`}
+                    >
+                      <Flag code={n.meta?.region} className="w-4 h-2.5 shrink-0" />
+                      <span className="truncate">{displayName(n)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         <hr className="border-border/50" />
 
-        <div className="flex flex-wrap gap-2">
+        {/* Desktop: sources */}
+        <div className="hidden md:flex flex-wrap gap-2">
           {sourcesLoading ? (
             <div className="flex items-center text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin mr-2" /> 加载中…
@@ -163,6 +213,48 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
               <span className="truncate max-w-[200px]">{s.name}</span>
             </button>
           ))}
+        </div>
+
+        {/* Mobile: source dropdown */}
+        <div className="md:hidden relative">
+          <button
+            onClick={() => setOpenDropdown(openDropdown === 'source' ? null : 'source')}
+            className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-border bg-card hover:bg-accent transition-colors"
+          >
+            <span className="text-muted-foreground">来源</span>
+            <span className="truncate max-w-[120px]">
+              {selectedSource?.name || '选择'}
+            </span>
+            <ChevronDown className={cn('h-3 w-3 transition-transform', openDropdown === 'source' && 'rotate-180')} />
+          </button>
+          {openDropdown === 'source' && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)} />
+              <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-2 w-[calc(100vw-2rem)] max-w-sm max-h-64 overflow-y-auto">
+                {sourcesLoading ? (
+                  <div className="flex items-center justify-center text-sm text-muted-foreground py-3">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> 加载中…
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    {sources.map(s => (
+                      <button
+                        key={s.name}
+                        onClick={() => { pickSource(s); setOpenDropdown(null) }}
+                        className={`inline-flex items-center px-2 py-1 text-xs rounded border transition-colors text-left ${
+                          active === 'source' && s.name === selectedSource?.name
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-card hover:bg-accent border-border'
+                        }`}
+                      >
+                        <span className="truncate">{s.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="space-y-6">
