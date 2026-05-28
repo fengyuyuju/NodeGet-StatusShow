@@ -203,7 +203,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     for (const child of container.children) {
       maxWidth = Math.max(maxWidth, (child as HTMLElement).offsetWidth)
     }
-    setNameColWidth(Math.max(80, Math.min(240, Math.ceil(maxWidth))))
+    setNameColWidth(Math.max(80, Math.min(240, Math.ceil(maxWidth) + 8)))
   }, [stats])
 
   const seriesPointsMap = useMemo(() => {
@@ -473,7 +473,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
         <span className={cn('sticky left-0 shrink-0 pl-2 pr-3 -mr-1', tableBg)} style={{ width: nameColWidth }}>
           来源
         </span>
-        <span className="flex-1 max-w-[300px] min-w-[120px] ml-auto">
+        <span className="flex-1 max-w-[450px] min-w-[120px] ml-auto">
           质量
         </span>
         <SortHeader
@@ -648,7 +648,7 @@ function LatencyStatsRow({
       <span className={cn('sticky left-0 shrink-0 flex items-center pl-2 pr-3 -mr-1', tableBg, 'group-hover:bg-muted')} style={{ width: nameColWidth }}>
         <span className="truncate font-semibold" style={{ color }}>{name}</span>
       </span>
-      <span className="flex-1 max-w-[300px] min-w-[120px] ml-auto">
+      <span className="flex-1 max-w-[450px] min-w-[120px] ml-auto">
         <QualityCanvas bars={bars} />
       </span>
       <span className="w-[52px] text-right tabular-nums font-mono">
