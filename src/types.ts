@@ -155,6 +155,9 @@ export type Sort =
   | 'netIn'
   | 'netOut'
   | 'uptime'
+  | 'expire'
+
+export type SortDir = 'asc' | 'desc'
 
 export type LatencyType = 'ping' | 'tcp_ping'
 

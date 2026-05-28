@@ -19,11 +19,13 @@ const LatencySummary = lazy(() =>
   import('./components/LatencySummary').then(m => ({ default: m.LatencySummary })),
 )
 import { deriveUsage, displayName } from './utils/derive'
-import type { Sort, View } from './types'
+import { remainingDays } from './utils/cost'
+import type { Sort, SortDir, View } from './types'
 
 const DEFAULT_LOGO = `${import.meta.env.BASE_URL}logo.png`
 const VIEW_KEY = 'nodeget.view'
 const SORT_KEY = 'nodeget.sort'
+const SORT_DIR_KEY = 'nodeget.sortDir'
 
 function initialView(): View {
   const v = localStorage.getItem(VIEW_KEY)
@@ -33,6 +35,10 @@ function initialView(): View {
 
 function initialSort(): Sort {
   return (localStorage.getItem(SORT_KEY) as Sort) || 'default'
+}
+
+function initialSortDir(): SortDir {
+  return (localStorage.getItem(SORT_DIR_KEY) as SortDir) || 'desc'
 }
 
 function readHash() {
@@ -56,6 +62,7 @@ export function App() {
 
   const [view, setView] = useState<View>(initialView)
   const [sort, setSort] = useState<Sort>(initialSort)
+  const [sortDir, setSortDir] = useState<SortDir>(initialSortDir)
   const [query, setQuery] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [activeRegion, setActiveRegion] = useState<string | null>(null)
@@ -69,6 +76,10 @@ export function App() {
   useEffect(() => {
     localStorage.setItem(SORT_KEY, sort)
   }, [sort])
+
+  useEffect(() => {
+    localStorage.setItem(SORT_DIR_KEY, sortDir)
+  }, [sortDir])
 
   useEffect(() => {
     const onHash = () => {
@@ -165,23 +176,35 @@ export function App() {
 
       const ua = deriveUsage(a)
       const ub = deriveUsage(b)
+      const d = sortDir === 'desc' ? -1 : 1
       let cmp = 0
-      if (sort === 'cpu') cmp = num(ub.cpu) - num(ua.cpu)
-      else if (sort === 'mem') cmp = num(ub.mem) - num(ua.mem)
-      else if (sort === 'disk') cmp = num(ub.disk) - num(ua.disk)
-      else if (sort === 'netIn') cmp = num(ub.netIn) - num(ua.netIn)
-      else if (sort === 'netOut') cmp = num(ub.netOut) - num(ua.netOut)
-      else if (sort === 'uptime') cmp = num(ub.uptime) - num(ua.uptime)
+      if (sort === 'cpu') cmp = (num(ua.cpu) - num(ub.cpu)) * d
+      else if (sort === 'mem') cmp = (num(ua.mem) - num(ub.mem)) * d
+      else if (sort === 'disk') cmp = (num(ua.disk) - num(ub.disk)) * d
+      else if (sort === 'netIn') cmp = (num(ua.netIn) - num(ub.netIn)) * d
+      else if (sort === 'netOut') cmp = (num(ua.netOut) - num(ub.netOut)) * d
+      else if (sort === 'uptime') cmp = (num(ua.uptime) - num(ub.uptime)) * d
+      else if (sort === 'expire') {
+        const da = remainingDays(a.meta?.expireTime) ?? Infinity
+        const db = remainingDays(b.meta?.expireTime) ?? Infinity
+        cmp = (da - db) * d
+      }
+      else if (sort === 'name') cmp = displayName(a).localeCompare(displayName(b)) * d
       else if (sort === 'region') {
         const ar = rank.get(a.meta?.region?.trim().toUpperCase() || '') ?? Infinity
         const br = rank.get(b.meta?.region?.trim().toUpperCase() || '') ?? Infinity
-        cmp = ar - br
+        cmp = (ar - br) * d
       }
       else if (sort === 'default') cmp = (a.meta?.order ?? 0) - (b.meta?.order ?? 0)
 
       return cmp || displayName(a).localeCompare(displayName(b))
     })
-  }, [nodes, query, activeTag, activeRegion, sort, regions])
+  }, [nodes, query, activeTag, activeRegion, sort, sortDir, regions])
+
+  const toggleSort = (key: Sort) => {
+    if (sort === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSort(key); setSortDir('desc') }
+  }
 
   const selectedNode = page === 'home' && selected ? nodes.get(selected) || null : null
 
@@ -279,7 +302,7 @@ export function App() {
             ))}
           </div>
         )}
-        {!empty && view === 'table' && <NodeTable nodes={list} onOpen={setSelected} />}
+        {!empty && view === 'table' && <NodeTable nodes={list} onOpen={setSelected} sort={sort} sortDir={sortDir} onSort={toggleSort} />}
         {!empty && view === 'map' && (
           <Suspense
             fallback={
