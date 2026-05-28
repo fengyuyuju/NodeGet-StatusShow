@@ -441,7 +441,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
 
   const statsTable = (
     <div className={cn('mt-3 border-t pt-3 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
-      <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[600px]', tableBg)}>
+      <div className={cn('flex items-center gap-0.5 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[590px]', tableBg)}>
         <span className={cn('sticky left-[-6px] z-10 min-w-[140px] pl-[14px] pr-3 -mr-1 rounded-l-md', tableBg)}>
           来源
         </span>
@@ -597,7 +597,7 @@ function LatencyStatsRow({
       onClick={onToggle}
       data-source={name}
       className={cn(
-        'flex items-center gap-1 pl-0 pr-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity group hover:bg-muted min-w-[600px]',
+        'flex items-center gap-0.5 pl-0 pr-2 py-1 rounded-md text-xs cursor-pointer select-none transition-opacity group hover:bg-muted min-w-[590px]',
         tableBg,
         hidden && 'opacity-35',
       )}
