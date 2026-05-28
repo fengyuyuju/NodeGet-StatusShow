@@ -112,7 +112,12 @@ function CellBar({ value, hint }: { value: number | undefined; hint?: string | n
   return (
     <div className="relative min-w-[110px]" title={hint || ''}>
       <Progress value={value} indicatorClassName={loadColor(value)} className="h-1.5" />
-      <span className="absolute inset-0 flex items-center justify-center font-mono text-xs font-medium">{pct(value)}</span>
+      <span
+        className="absolute inset-0 flex items-center justify-center font-mono text-xs font-medium"
+        style={{ textShadow: '-1px -1px 0 hsl(var(--card)), 1px -1px 0 hsl(var(--card)), -1px 1px 0 hsl(var(--card)), 1px 1px 0 hsl(var(--card))' }}
+      >
+        {pct(value)}
+      </span>
     </div>
   )
 }
