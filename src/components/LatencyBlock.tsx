@@ -440,7 +440,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
   const tableBg = maximized ? 'bg-background' : 'bg-card'
 
   const statsTable = (
-    <div className={cn('mt-3 border-t pt-3 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
+    <div className={cn('mt-3 border-t pt-3 pb-1.5 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
       <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[570px]', tableBg)}>
         <span className={cn('sticky left-0 min-w-[140px] pl-2 pr-3 -mr-1', tableBg)}>
           来源
