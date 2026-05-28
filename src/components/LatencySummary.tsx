@@ -115,7 +115,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
   }
 
   const mobileDropdown = (
-    <div className="relative">
+    <>
       <button
         onClick={() => setOpenDropdown(!openDropdown)}
         className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-border bg-card hover:bg-accent transition-colors"
@@ -134,7 +134,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
       {openDropdown && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(false)} />
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-2 w-[calc(100vw-0.5rem)] max-h-[70vh] overflow-y-auto space-y-2">
+          <div className="fixed left-1 right-1 top-[88px] z-50 bg-popover border border-border rounded-md shadow-lg p-2 max-h-[70vh] overflow-y-auto space-y-2">
             <div>
               <div className="text-[10px] text-muted-foreground px-1 mb-1">节点</div>
               <div className="grid grid-cols-4 gap-0.5">
@@ -181,7 +181,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
           </div>
         </>
       )}
-    </div>
+    </>
   )
 
   return (
