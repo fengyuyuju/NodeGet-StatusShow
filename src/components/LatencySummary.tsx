@@ -40,11 +40,13 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
   const headerRef = useRef<HTMLDivElement>(null)
   const [stuck, setStuck] = useState(false)
   const [openDropdown, setOpenDropdown] = useState(false)
+  const dropdownBtnRef = useRef<HTMLButtonElement>(null)
+  const [dropdownTop, setDropdownTop] = useState(0)
 
   useEffect(() => {
     if (!openDropdown) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenDropdown(null)
+      if (e.key === 'Escape') setOpenDropdown(false)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -117,7 +119,14 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
   const mobileDropdown = (
     <>
       <button
-        onClick={() => setOpenDropdown(!openDropdown)}
+        ref={dropdownBtnRef}
+        onClick={() => {
+          const willOpen = !openDropdown
+          setOpenDropdown(willOpen)
+          if (willOpen && dropdownBtnRef.current) {
+            setDropdownTop(dropdownBtnRef.current.getBoundingClientRect().bottom + 4)
+          }
+        }}
         className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-border bg-card hover:bg-accent transition-colors"
       >
         {active === 'node' && selectedNode?.meta?.region && (
@@ -134,7 +143,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
       {openDropdown && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(false)} />
-          <div className="fixed left-1 right-1 top-[88px] z-50 bg-popover border border-border rounded-md shadow-lg p-2 max-h-[70vh] overflow-y-auto space-y-2">
+          <div className="fixed left-1 right-1 z-50 bg-popover border border-border rounded-md shadow-lg p-2 max-h-[70vh] overflow-y-auto space-y-2" style={{ top: dropdownTop }}>
             <div>
               <div className="text-[10px] text-muted-foreground px-1 mb-1">节点</div>
               <div className="grid grid-cols-4 gap-0.5">
