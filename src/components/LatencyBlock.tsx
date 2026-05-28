@@ -489,7 +489,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-[60px]"
+          className="w-[52px]"
         />
         <SortHeader
           label="P95"
@@ -497,7 +497,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-[60px]"
+          className="w-[52px]"
         />
         <SortHeader
           label="P99"
@@ -505,7 +505,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-[60px]"
+          className="w-[52px]"
         />
         <SortHeader
           label="抖动"
@@ -513,7 +513,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-12"
+          className="w-10"
         />
         <SortHeader
           label="丢包率"
@@ -521,7 +521,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
-          className="w-12"
+          className="w-10"
         />
       </div>
       {longestName && (
@@ -661,21 +661,21 @@ function LatencyStatsRow({
       <span className="flex-1 max-w-[300px] min-w-[120px] ml-auto">
         <QualityCanvas bars={bars} />
       </span>
-      <span className="w-[60px] text-right tabular-nums font-mono">
+      <span className="w-[52px] text-right tabular-nums font-mono">
         {avg != null ? ms(avg) : '—'}
       </span>
-      <span className="w-[60px] text-right tabular-nums font-mono">
+      <span className="w-[52px] text-right tabular-nums font-mono">
         {p95 != null ? ms(p95) : '—'}
       </span>
-      <span className="w-[60px] text-right tabular-nums font-mono">
+      <span className="w-[52px] text-right tabular-nums font-mono">
         {p99 != null ? ms(p99) : '—'}
       </span>
-      <span className="w-12 text-right tabular-nums font-mono">
+      <span className="w-10 text-right tabular-nums font-mono">
         {jitter != null ? ms(jitter) : '—'}
       </span>
       <span
         className={cn(
-          'w-12 text-right tabular-nums font-mono',
+          'w-10 text-right tabular-nums font-mono',
           lossRate >= 5 && 'text-red-500 font-medium',
         )}
       >
