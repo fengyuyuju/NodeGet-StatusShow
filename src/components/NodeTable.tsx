@@ -85,18 +85,18 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
                     hint={u.diskTotal ? `${bytes(u.diskUsed)} / ${bytes(u.diskTotal)}` : null}
                   />
                 </TableCell>
-                <TableCell className="font-mono text-xs leading-tight">
+                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap">
                   <div className="flex items-center gap-1"><ArrowUp className="h-3 w-3 text-emerald-500 shrink-0" />{bytes(u.netOut || 0)}/s</div>
                   <div className="flex items-center gap-1"><ArrowDown className="h-3 w-3 text-blue-500 shrink-0" />{bytes(u.netIn || 0)}/s</div>
                 </TableCell>
-                <TableCell className="font-mono text-xs leading-tight">
+                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap">
                   <div className="flex items-center gap-1"><ArrowUp className="h-3 w-3 text-emerald-500 shrink-0" />{bytes(n.dynamic?.total_transmitted || 0)}</div>
                   <div className="flex items-center gap-1"><ArrowDown className="h-3 w-3 text-blue-500 shrink-0" />{bytes(n.dynamic?.total_received || 0)}</div>
                 </TableCell>
-                <TableCell className="font-mono text-xs">
+                <TableCell className="font-mono text-xs whitespace-nowrap">
                   <ExpireDays meta={n.meta} />
                 </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
+                <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
                   {relativeAge(u.ts)}
                 </TableCell>
               </TableRow>
