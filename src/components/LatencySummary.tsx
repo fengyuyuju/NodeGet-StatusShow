@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowLeft, ChevronDown, Loader2 } from 'lucide-react'
 import { LatencyBlock } from './LatencyBlock'
 import { Flag } from './Flag'
@@ -16,6 +17,8 @@ interface Props {
   pool: BackendPool | null
   onBack: () => void
 }
+
+const MOBILE_DROPDOWN_GAP = 4
 
 function mergePingTcp(pingRows: TaskQueryResult[], tcpRows: TaskQueryResult[]): TaskQueryResult[] {
   const tcpMapped = tcpRows.map(r => ({
@@ -42,6 +45,22 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
   const [openDropdown, setOpenDropdown] = useState(false)
   const dropdownBtnRef = useRef<HTMLButtonElement>(null)
   const [dropdownTop, setDropdownTop] = useState(0)
+
+  useLayoutEffect(() => {
+    if (!openDropdown) return
+    const updateTop = () => {
+      const btn = dropdownBtnRef.current
+      if (!btn) return
+      setDropdownTop(btn.getBoundingClientRect().bottom + MOBILE_DROPDOWN_GAP)
+    }
+    updateTop()
+    window.addEventListener('resize', updateTop)
+    document.addEventListener('scroll', updateTop, true)
+    return () => {
+      window.removeEventListener('resize', updateTop)
+      document.removeEventListener('scroll', updateTop, true)
+    }
+  }, [openDropdown])
 
   useEffect(() => {
     if (!openDropdown) return
@@ -120,13 +139,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
     <>
       <button
         ref={dropdownBtnRef}
-        onClick={() => {
-          const willOpen = !openDropdown
-          setOpenDropdown(willOpen)
-          if (willOpen && dropdownBtnRef.current) {
-            setDropdownTop(dropdownBtnRef.current.getBoundingClientRect().bottom + 4)
-          }
-        }}
+        onClick={() => setOpenDropdown(!openDropdown)}
         className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-border bg-card hover:bg-accent transition-colors"
       >
         {active === 'node' && selectedNode?.meta?.region && (
@@ -140,10 +153,10 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
         </span>
         <ChevronDown className={cn('h-3 w-3 transition-transform', openDropdown && 'rotate-180')} />
       </button>
-      {openDropdown && (
+      {openDropdown && createPortal(
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(false)} />
-          <div className="fixed left-1 right-1 z-50 bg-popover border border-border rounded-md shadow-lg p-2 max-h-[70vh] overflow-y-auto space-y-2" style={{ top: dropdownTop }}>
+          <div className="fixed inset-0 z-[70]" onClick={() => setOpenDropdown(false)} />
+          <div className="fixed left-1 right-1 z-[80] bg-popover border border-border rounded-md shadow-lg p-2 max-h-[70vh] overflow-y-auto space-y-2" style={{ top: dropdownTop }}>
             <div>
               <div className="text-[10px] text-muted-foreground px-1 mb-1">节点</div>
               <div className="grid grid-cols-4 gap-0.5">
@@ -188,7 +201,8 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
               )}
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   )
