@@ -176,11 +176,12 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
                   <button
                     key={n.uuid}
                     onClick={() => { pickNode(n.uuid); setOpenDropdown(false) }}
-                    className={`inline-flex items-center gap-1 px-1.5 py-1 text-[11px] rounded border transition-colors text-left ${
+                    className={cn(
+                      'inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-full border transition-colors text-left',
                       active === 'node' && n.uuid === activeNodeUuid
                         ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-card hover:bg-accent border-border'
-                    }`}
+                        : 'bg-card text-foreground/80 border-border hover:bg-accent',
+                    )}
                   >
                     <Flag code={n.meta?.region} className="w-3.5 h-2 shrink-0" />
                     <span className="truncate">{displayName(n)}</span>
@@ -200,11 +201,12 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
                     <button
                       key={s.name}
                       onClick={() => { pickSource(s); setOpenDropdown(false) }}
-                      className={`inline-flex items-center px-1.5 py-1 text-[11px] rounded border transition-colors text-left ${
+                      className={cn(
+                        'inline-flex items-center px-2 py-1 text-[11px] rounded-full border transition-colors text-left',
                         active === 'source' && s.name === selectedSource?.name
                           ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-card hover:bg-accent border-border'
-                      }`}
+                          : 'bg-card text-foreground/80 border-border hover:bg-accent',
+                    )}
                     >
                       <span className="truncate">{s.name}</span>
                     </button>
@@ -248,11 +250,12 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
             <button
               key={n.uuid}
               onClick={() => pickNode(n.uuid)}
-              className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors ${
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors',
                 active === 'node' && n.uuid === activeNodeUuid
                   ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-card hover:bg-accent border-border'
-              }`}
+                  : 'bg-card text-foreground/80 border-border hover:bg-accent',
+              )}
             >
               <Flag code={n.meta?.region} className="w-4 h-2.5" />
               <span className="truncate max-w-[150px]">{displayName(n)}</span>
@@ -272,11 +275,12 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
             <button
               key={s.name}
               onClick={() => pickSource(s)}
-              className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors ${
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors',
                 active === 'source' && s.name === selectedSource?.name
                   ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-card hover:bg-accent border-border'
-              }`}
+                  : 'bg-card text-foreground/80 border-border hover:bg-accent',
+              )}
             >
               <span className="truncate max-w-[200px]">{s.name}</span>
             </button>
