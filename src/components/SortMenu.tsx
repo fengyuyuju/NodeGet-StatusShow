@@ -63,7 +63,6 @@ export function SortMenu({ value, onChange }: { value: Sort; onChange: (v: Sort)
         className="relative z-10 inline-flex items-center justify-center gap-1.5 px-3 py-1 text-sm font-medium rounded-sm transition-colors text-muted-foreground hover:text-foreground"
       >
         <ArrowUpDown className="h-4 w-4" />
-        <span className="hidden sm:inline">{current.label}</span>
       </button>
       {show && (
         <div
