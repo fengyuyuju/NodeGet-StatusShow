@@ -101,10 +101,15 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
     selectedSource?.uuidCount ?? 1,
   )
 
+  const nodeSourceCount = activeNodeUuid
+    ? sources.filter(s => s.uuids.has(activeNodeUuid)).length || 1
+    : 1
+
   const nodeLatency = useNodeAllLatency(
     pool,
     activeNodeUuid,
     range,
+    nodeSourceCount,
   )
 
   const loading = active === 'source' ? sourceLatency.loading : nodeLatency.loading
