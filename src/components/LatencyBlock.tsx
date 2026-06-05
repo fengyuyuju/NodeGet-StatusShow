@@ -89,6 +89,12 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
   const empty = series.every(s => s.points.length === 0)
   const emptyLabel = merged ? '延迟' : type
 
+  const xDomain = useMemo((): [number, number] => {
+    const ms = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
+    const now = Date.now()
+    return [now - ms, now]
+  }, [range])
+
   useEffect(() => {
     if (!maximized) return
     const onKey = (e: KeyboardEvent) => {
@@ -106,14 +112,15 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     for (const s of series) {
       for (const p of s.points) set.add(p.t)
     }
+    set.add(xDomain[0])
+    set.add(xDomain[1])
     return [...set].sort((a, b) => a - b).map(t => ({ t, _ref: 0 }))
-  }, [series])
+  }, [series, xDomain])
 
   const xTicks = useMemo(() => {
-    const times = chartData.map(d => d.t)
-    if (times.length === 0) return []
-    const min = times[0]
-    const max = times[times.length - 1]
+    if (chartData.length === 0) return []
+    const min = xDomain[0]
+    const max = xDomain[1]
     if (min === max) return [min]
     if (range === '7d') {
       const ticks: number[] = []
@@ -402,7 +409,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
             <XAxis
               dataKey="t"
               type="number"
-              domain={['dataMin', 'dataMax']}
+              domain={xDomain}
               scale="time"
               allowDuplicatedCategory={false}
               tickFormatter={t =>
