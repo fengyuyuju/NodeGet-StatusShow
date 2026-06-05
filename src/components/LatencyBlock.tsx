@@ -493,7 +493,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
   const statsTable = (
     <div className={cn('mt-3 border-t pt-3 pb-1.5 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
       <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[530px]', tableBg)}>
-        <span className={cn('sticky left-0 shrink-0 pl-2 pr-3 -mr-1', tableBg)} style={{ width: nameColWidth }}>
+        <span className={cn('sticky left-0 shrink-0 pl-2 pr-3 -mr-1 z-10', tableBg)} style={{ width: nameColWidth }}>
           {sourceLabel}
         </span>
         <span className="flex-1 max-w-[450px] min-w-[120px] ml-auto">
@@ -668,7 +668,7 @@ function LatencyStatsRow({
         hidden && 'opacity-35',
       )}
     >
-      <span className={cn('sticky left-0 shrink-0 flex items-center pl-2 pr-3 -mr-1', tableBg, 'group-hover:bg-muted')} style={{ width: nameColWidth }}>
+      <span className={cn('sticky left-0 shrink-0 flex items-center pl-2 pr-3 -mr-1 z-10', tableBg, 'group-hover:bg-muted')} style={{ width: nameColWidth }}>
         <span className="truncate font-semibold" style={{ color }}>{name}</span>
       </span>
       <span className="flex-1 max-w-[450px] min-w-[120px] ml-auto">
