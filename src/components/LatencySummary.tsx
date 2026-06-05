@@ -147,23 +147,72 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
     setSelectedNodeUuid(uuid)
   }
 
+  const currentIndex = active === 'node'
+    ? nodeList.findIndex(n => n.uuid === activeNodeUuid)
+    : sources.findIndex(s => s.name === selectedSource?.name)
+
+  const maxIndex = (active === 'node' ? nodeList.length : sources.length) - 1
+
+  const isFirstNode = active === 'node' && currentIndex <= 0
+  const isLastSource = active === 'source' && currentIndex >= maxIndex
+
+  const goToPrev = () => {
+    if (active === 'source') {
+      if (currentIndex > 0) {
+        pickSource(sources[currentIndex - 1])
+      } else if (nodeList.length > 0) {
+        pickNode(nodeList[nodeList.length - 1].uuid)
+      }
+    } else if (currentIndex > 0) {
+      pickNode(nodeList[currentIndex - 1].uuid)
+    }
+  }
+
+  const goToNext = () => {
+    if (active === 'node') {
+      if (currentIndex < maxIndex) {
+        pickNode(nodeList[currentIndex + 1].uuid)
+      } else if (sources.length > 0) {
+        pickSource(sources[0])
+      }
+    } else if (currentIndex < maxIndex) {
+      pickSource(sources[currentIndex + 1])
+    }
+  }
+
   const mobileDropdown = (
-    <>
+    <div className="inline-flex items-center gap-1">
       <button
         ref={dropdownBtnRef}
         onClick={() => setOpenDropdown(!openDropdown)}
-        className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-border bg-card hover:bg-accent transition-colors"
+        className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-border bg-card hover:bg-accent transition-colors w-[120px]"
       >
         {active === 'node' && selectedNode?.meta?.region && (
           <Flag code={selectedNode.meta.region} className="w-3.5 h-2 shrink-0" />
         )}
-        <span className="truncate max-w-[120px]">
+        <span className="truncate">
           {active === 'node'
             ? (selectedNode ? displayName(selectedNode) : '选择')
             : (selectedSource?.name || '选择')
           }
         </span>
-        <ChevronDown className={cn('h-3 w-3 transition-transform', openDropdown && 'rotate-180')} />
+        <ChevronDown className={cn('h-3 w-3 transition-transform ml-auto shrink-0', openDropdown && 'rotate-180')} />
+      </button>
+      <button
+        onClick={goToPrev}
+        disabled={isFirstNode}
+        className="inline-flex items-center justify-center h-[26px] w-[26px] rounded border border-border bg-card hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        aria-label="上一个"
+      >
+        <svg width="8" height="6" viewBox="0 0 8 6"><path d="M4 0l4 6H0z" fill="currentColor" /></svg>
+      </button>
+      <button
+        onClick={goToNext}
+        disabled={isLastSource}
+        className="inline-flex items-center justify-center h-[26px] w-[26px] rounded border border-border bg-card hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        aria-label="下一个"
+      >
+        <svg width="8" height="6" viewBox="0 0 8 6"><path d="M4 6l4-6H0z" fill="currentColor" /></svg>
       </button>
       {openDropdown && createPortal(
         <>
@@ -218,7 +267,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
         </>,
         document.body,
       )}
-    </>
+    </div>
   )
 
   return (

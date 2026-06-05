@@ -454,7 +454,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
                   dataKey="value"
                   name={s.name}
                   stroke={s.color}
-                  strokeWidth={1}
+                  strokeWidth={2}
                   dot={false}
                   activeDot={false}
                   isAnimationActive={false}
@@ -466,7 +466,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
                   dataKey="value"
                   name={`${s.name}__timeout`}
                   stroke={s.color}
-                  strokeWidth={1}
+                  strokeWidth={2}
                   strokeOpacity={0.2}
                   dot={false}
                   activeDot={false}
