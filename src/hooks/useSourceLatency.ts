@@ -22,6 +22,7 @@ export function useSourceLatency(
   pool: BackendPool | null,
   cronSource: string | null,
   range: LatencyRange,
+  nodeCount = 1,
 ) {
   const [pingData, setPingData] = useState<TaskQueryResult[]>([])
   const [tcpData, setTcpData] = useState<TaskQueryResult[]>([])
@@ -37,8 +38,8 @@ export function useSourceLatency(
     if (!pool || !cronSource) return
 
     const windowMs = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
-    const pingLimit = computeQueryLimit(windowMs, 'ping')
-    const tcpLimit = computeQueryLimit(windowMs, 'tcp_ping')
+    const pingLimit = computeQueryLimit(windowMs, 'ping') * nodeCount
+    const tcpLimit = computeQueryLimit(windowMs, 'tcp_ping') * nodeCount
 
     let cancelled = false
     let inFlight = false
@@ -89,7 +90,7 @@ export function useSourceLatency(
       cancelled = true
       clearInterval(timer)
     }
-  }, [pool, cronSource, range])
+  }, [pool, cronSource, range, nodeCount])
 
   return { pingData, tcpData, loading, errors }
 }

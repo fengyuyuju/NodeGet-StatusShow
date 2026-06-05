@@ -17,7 +17,7 @@ const REFRESH_MS = 10_000
 const QUERY_TIMEOUT_MS = 20_000
 
 export function computeQueryLimit(windowMs: number, type: 'ping' | 'tcp_ping'): number {
-  const rateMs = type === 'ping' ? 10000 : 30000
+  const rateMs = type === 'ping' ? 20_000 : 60_000
   return Math.max(2000, Math.ceil(windowMs / rateMs))
 }
 

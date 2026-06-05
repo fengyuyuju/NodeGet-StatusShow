@@ -98,6 +98,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
     pool,
     active === 'source' ? selectedSource?.name ?? null : null,
     range,
+    selectedSource?.uuidCount ?? 1,
   )
 
   const nodeLatency = useNodeAllLatency(
