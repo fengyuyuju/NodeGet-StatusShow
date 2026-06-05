@@ -454,7 +454,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
                   dataKey="value"
                   name={s.name}
                   stroke={s.color}
-                  strokeWidth={2}
+                  strokeWidth={1}
                   dot={false}
                   activeDot={false}
                   isAnimationActive={false}
@@ -466,7 +466,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
                   dataKey="value"
                   name={`${s.name}__timeout`}
                   stroke={s.color}
-                  strokeWidth={2}
+                  strokeWidth={1}
                   strokeOpacity={0.2}
                   dot={false}
                   activeDot={false}
@@ -782,7 +782,7 @@ function CursorDots(props: CursorDotsProps) {
     const cy = toY(value)
     if (!Number.isFinite(cy)) continue
     circles.push(
-      <circle key={s.name} cx={x} cy={cy} r={5} fill={s.color} stroke="#fff" strokeWidth={2} />,
+      <circle key={s.name} cx={x} cy={cy} r={5} fill={s.color} stroke="#fff" strokeWidth={1} />,
     )
   }
 
