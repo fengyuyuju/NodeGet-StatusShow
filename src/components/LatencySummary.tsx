@@ -94,22 +94,29 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
     ? (selectedNodeUuid && nodeList.some(n => n.uuid === selectedNodeUuid) ? selectedNodeUuid : nodeList[0]?.uuid ?? null)
     : null
 
+  const sourceNodeCount = selectedSource?.uuidCount ?? 1
+
   const sourceLatency = useSourceLatency(
     pool,
     active === 'source' ? selectedSource?.name ?? null : null,
     range,
-    selectedSource?.uuidCount ?? 1,
+    selectedSource && selectedSource.type !== 'tcp_ping' ? sourceNodeCount : 1,
+    selectedSource && selectedSource.type !== 'ping' ? sourceNodeCount : 1,
   )
 
-  const nodeSourceCount = activeNodeUuid
-    ? sources.filter(s => s.uuids.has(activeNodeUuid)).length || 1
+  const pingSourceCount = activeNodeUuid
+    ? sources.filter(s => s.uuids.has(activeNodeUuid) && s.type !== 'tcp_ping').length || 1
+    : 1
+  const tcpSourceCount = activeNodeUuid
+    ? sources.filter(s => s.uuids.has(activeNodeUuid) && s.type !== 'ping').length || 1
     : 1
 
   const nodeLatency = useNodeAllLatency(
     pool,
     activeNodeUuid,
     range,
-    nodeSourceCount,
+    pingSourceCount,
+    tcpSourceCount,
   )
 
   const loading = active === 'source' ? sourceLatency.loading : nodeLatency.loading

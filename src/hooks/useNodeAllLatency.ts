@@ -22,7 +22,8 @@ export function useNodeAllLatency(
   pool: BackendPool | null,
   uuid: string | null,
   range: LatencyRange,
-  sourceCount = 1,
+  pingSourceCount = 1,
+  tcpSourceCount = 1,
 ) {
   const [pingData, setPingData] = useState<TaskQueryResult[]>([])
   const [tcpData, setTcpData] = useState<TaskQueryResult[]>([])
@@ -38,8 +39,8 @@ export function useNodeAllLatency(
     if (!pool || !uuid) return
 
     const windowMs = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
-    const pingLimit = computeQueryLimit(windowMs, 'ping') * sourceCount
-    const tcpLimit = computeQueryLimit(windowMs, 'tcp_ping') * sourceCount
+    const pingLimit = computeQueryLimit(windowMs, 'ping') * pingSourceCount
+    const tcpLimit = computeQueryLimit(windowMs, 'tcp_ping') * tcpSourceCount
 
     let cancelled = false
     let inFlight = false
@@ -86,7 +87,7 @@ export function useNodeAllLatency(
       cancelled = true
       clearInterval(timer)
     }
-  }, [pool, uuid, range, sourceCount])
+  }, [pool, uuid, range, pingSourceCount, tcpSourceCount])
 
   return { pingData, tcpData, loading, errors }
 }
