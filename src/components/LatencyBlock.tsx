@@ -39,7 +39,7 @@ export interface LatencyBlockProps {
   sourceLabel?: string
 }
 
-type SortField = 'avg' | 'p95' | 'p99' | 'jitter' | 'lossRate'
+type SortField = 'p50' | 'p95' | 'p99' | 'jitter' | 'lossRate'
 type SortDir = 'asc' | 'desc'
 
 const ms = (v: number) => v.toFixed(1)
@@ -83,7 +83,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   const [peakClipping, setPeakClipping] = useState(true)
   const [hovered, setHovered] = useState<string | null>(null)
-  const [sortField, setSortField] = useState<SortField>('avg')
+  const [sortField, setSortField] = useState<SortField>('p50')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [maximized, setMaximized] = useState(false)
   const empty = series.every(s => s.points.length === 0)
@@ -188,9 +188,9 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     const sorted = [...base]
     sorted.sort((a, b) => {
       let av: number, bv: number
-      if (sortField === 'avg') {
-        av = a.avg ?? Infinity
-        bv = b.avg ?? Infinity
+      if (sortField === 'p50') {
+        av = a.p50 ?? Infinity
+        bv = b.p50 ?? Infinity
       } else if (sortField === 'p95') {
         av = a.p95 ?? Infinity
         bv = b.p95 ?? Infinity
@@ -500,8 +500,8 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           质量
         </span>
         <SortHeader
-          label="平均值"
-          field="avg"
+          label="P50"
+          field="p50"
           current={sortField}
           dir={sortDir}
           onClick={handleSort}
@@ -655,7 +655,7 @@ function LatencyStatsRow({
   tableBg: string
   nameColWidth: number
 }) {
-  const { name, color, avg, p95, p99, jitter, lossRate } = stat
+  const { name, color, p50, p95, p99, jitter, lossRate } = stat
   const bars = useMemo(() => points.map(p => p.value), [points])
 
   return (
@@ -675,7 +675,7 @@ function LatencyStatsRow({
         <QualityCanvas bars={bars} />
       </span>
       <span className="w-[52px] text-right tabular-nums font-mono">
-        {avg != null ? ms(avg) : '—'}
+        {p50 != null ? ms(p50) : '—'}
       </span>
       <span className="w-[52px] text-right tabular-nums font-mono">
         {p95 != null ? ms(p95) : '—'}

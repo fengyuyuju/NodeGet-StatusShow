@@ -184,6 +184,7 @@ export interface LatencyStats {
   name: string
   color: string
   avg: number | null
+  p50: number | null
   p95: number | null
   p99: number | null
   jitter: number | null
@@ -227,7 +228,7 @@ export function computeLatencyStats(rows: TaskQueryResult[], type: LatencyType):
 
     const color = generateSpectrumColor(i, total)
     const lossRate = list.length ? ((list.length - vals.length) / list.length) * 100 : 0
-    if (!vals.length) return { name, color, avg: null, p95: null, p99: null, jitter: null, lossRate }
+    if (!vals.length) return { name, color, avg: null, p50: null, p95: null, p99: null, jitter: null, lossRate }
 
     const avg = vals.reduce((s, v) => s + v, 0) / vals.length
     const jitter =
@@ -235,10 +236,11 @@ export function computeLatencyStats(rows: TaskQueryResult[], type: LatencyType):
         ? vals.slice(1).reduce((s, v, i) => s + Math.abs(v - vals[i]), 0) / (vals.length - 1)
         : null
     const sorted = [...vals].sort((a, b) => a - b)
+    const p50 = percentile(sorted, 0.50)
     const p95 = percentile(sorted, 0.95)
     const p99 = percentile(sorted, 0.99)
 
-    return { name, color, avg, p95, p99, jitter, lossRate }
+    return { name, color, avg, p50, p95, p99, jitter, lossRate }
   })
 
   return stats.sort((a, b) => {
@@ -294,14 +296,14 @@ export function computeMergedLatencyStats(dataMap: Partial<Record<LatencyType, T
 
     const color = generateSpectrumColor(idx, total)
     const lossRate = list.length ? ((list.length - vals.length) / list.length) * 100 : 0
-    if (!vals.length) return { name: sourceName, color, avg: null, p95: null, p99: null, jitter: null, lossRate }
+    if (!vals.length) return { name: sourceName, color, avg: null, p50: null, p95: null, p99: null, jitter: null, lossRate }
 
     const avg = vals.reduce((s, v) => s + v, 0) / vals.length
     const jitter = vals.length >= 2
       ? vals.slice(1).reduce((s, v, i) => s + Math.abs(v - vals[i]), 0) / (vals.length - 1)
       : null
     const sorted = [...vals].sort((a, b) => a - b)
-    return { name: sourceName, color, avg, p95: percentile(sorted, 0.95), p99: percentile(sorted, 0.99), jitter, lossRate }
+    return { name: sourceName, color, avg, p50: percentile(sorted, 0.50), p95: percentile(sorted, 0.95), p99: percentile(sorted, 0.99), jitter, lossRate }
   })
 
   return allStats.sort((a, b) => {
