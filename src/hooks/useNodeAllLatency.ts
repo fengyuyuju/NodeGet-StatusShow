@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { taskQuery } from '../api/methods'
 import type { BackendPool } from '../api/pool'
 import type { TaskQueryResult } from '../types'
-import { LATENCY_RANGES, type LatencyRange } from './useNodeLatency'
+import { LATENCY_RANGES, computeQueryLimit, type LatencyRange } from './useNodeLatency'
 
 const REFRESH_MS = 10_000
 const QUERY_TIMEOUT_MS = 20_000
@@ -37,6 +37,8 @@ export function useNodeAllLatency(
     if (!pool || !uuid) return
 
     const windowMs = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
+    const pingLimit = computeQueryLimit(windowMs, 'ping')
+    const tcpLimit = computeQueryLimit(windowMs, 'tcp_ping')
 
     let cancelled = false
     let inFlight = false
@@ -52,12 +54,12 @@ export function useNodeAllLatency(
         const [ping, tcp] = await Promise.all([
           pool.fanout(
             taskQuery,
-            [{ uuid }, { timestamp_from_to: window }, { type: 'ping' }],
+            [{ uuid }, { timestamp_from_to: window }, { type: 'ping' }, { limit: pingLimit }],
             QUERY_TIMEOUT_MS,
           ),
           pool.fanout(
             taskQuery,
-            [{ uuid }, { timestamp_from_to: window }, { type: 'tcp_ping' }],
+            [{ uuid }, { timestamp_from_to: window }, { type: 'tcp_ping' }, { limit: tcpLimit }],
             QUERY_TIMEOUT_MS,
           ),
         ])

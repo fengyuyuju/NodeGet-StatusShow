@@ -29,10 +29,10 @@ function mergePingTcp(pingRows: TaskQueryResult[], tcpRows: TaskQueryResult[]): 
 }
 
 function remapByTarget(rows: TaskQueryResult[], nodes: Map<string, Node>): TaskQueryResult[] {
-  if (nodes.size === 0) return rows.map(r => ({ ...r, cron_source: r.uuid.slice(0, 8) }))
-  return rows
-    .filter(r => nodes.has(r.uuid))
-    .map(r => ({ ...r, cron_source: displayName(nodes.get(r.uuid)!) }))
+  return rows.map(r => {
+    const node = nodes.get(r.uuid)
+    return { ...r, cron_source: node ? displayName(node) : r.uuid.slice(0, 8) }
+  })
 }
 
 export function LatencySummary({ nodes, pool, onBack }: Props) {
