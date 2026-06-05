@@ -124,7 +124,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
         ticks.push(d.getTime())
         d.setDate(d.getDate() + 1)
       }
-      return ticks
+      if (ticks.length >= 2) return ticks
     }
     const count = 6
     const step = (max - min) / (count - 1)
