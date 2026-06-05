@@ -32,6 +32,8 @@ export function useNodeLatency(
   source: string | null,
   uuid: string | null,
   range: LatencyRange = '1h',
+  pingSourceCount = 1,
+  tcpSourceCount = 1,
 ) {
   const [pingData, setPingData] = useState<TaskQueryResult[]>([])
   const [tcpData, setTcpData] = useState<TaskQueryResult[]>([])
@@ -46,8 +48,8 @@ export function useNodeLatency(
     if (!entry) return
 
     const windowMs = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
-    const pingLimit = computeQueryLimit(windowMs, 'ping')
-    const tcpLimit = computeQueryLimit(windowMs, 'tcp_ping')
+    const pingLimit = computeQueryLimit(windowMs, 'ping') * pingSourceCount
+    const tcpLimit = computeQueryLimit(windowMs, 'tcp_ping') * tcpSourceCount
 
     let cancelled = false
     let inFlight = false

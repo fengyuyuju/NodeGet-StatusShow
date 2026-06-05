@@ -18,6 +18,7 @@ import { deriveUsage, displayName, distroLogo, osLabel, virtLabel } from '../uti
 import { cycleProgress, hasCost, remainingDays, remainingValue } from '../utils/cost'
 import { cn, strokeColor } from '../utils/cn'
 import { useNodeLatency, type LatencyRange } from '../hooks/useNodeLatency'
+import { useLatencySources } from '../hooks/useLatencySources'
 import { LatencyBlock } from './LatencyBlock'
 import type { BackendPool } from '../api/pool'
 import type { HistorySample, Node, NodeMeta } from '../types'
@@ -56,6 +57,8 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
     }
   }, [node, onClose])
 
+  const { sources } = useLatencySources(pool)
+
   const nodeUuid = node?.uuid
   useEffect(() => {
     const el = scrollRef.current
@@ -69,11 +72,25 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
     return () => el.removeEventListener('scroll', onScroll)
   }, [nodeUuid])
 
+  const pingSourceCount = useMemo(() => {
+    if (!nodeUuid) return 1
+    const count = sources.filter(s => s.uuids.has(nodeUuid) && s.type !== 'tcp_ping').length
+    return count || 1
+  }, [sources, nodeUuid])
+
+  const tcpSourceCount = useMemo(() => {
+    if (!nodeUuid) return 1
+    const count = sources.filter(s => s.uuids.has(nodeUuid) && s.type !== 'ping').length
+    return count || 1
+  }, [sources, nodeUuid])
+
   const { pingData, tcpData, loading: latencyLoading } = useNodeLatency(
     pool,
     node?.source ?? null,
     node?.uuid ?? null,
     latencyRange,
+    pingSourceCount,
+    tcpSourceCount,
   )
 
   if (!node) return null
