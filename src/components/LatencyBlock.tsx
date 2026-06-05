@@ -726,6 +726,57 @@ function SortHeader({ label, field, current, dir, onClick, className }: SortHead
   )
 }
 
+/**
+ * Binary search for the interpolated value of a series at a given timestamp.
+ * `normalLine` is sorted by `t`. Returns the value and whether the cursor is inside a gap.
+ */
+function lookupSeriesValue(normalLine: ChartSeriesPoint[], targetT: number): { value: number | null; inGap: boolean } {
+  const n = normalLine.length
+  if (n === 0) return { value: null, inGap: false }
+
+  // Binary search for insertion point
+  let lo = 0
+  let hi = n - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1
+    const mt = normalLine[mid].t
+    if (mt < targetT) lo = mid + 1
+    else if (mt > targetT) hi = mid - 1
+    else {
+      // Exact timestamp match
+      const v = normalLine[mid].value
+      if (v == null || !Number.isFinite(v)) return { value: null, inGap: true }
+      return { value: v, inGap: false }
+    }
+  }
+  // After binary search: hi = last index with t < targetT, lo = first index with t > targetT
+
+  // Walk backward to nearest valid point
+  let loIdx = hi
+  while (loIdx >= 0 && (normalLine[loIdx].value == null || !Number.isFinite(normalLine[loIdx].value!))) loIdx--
+  if (loIdx < 0) return { value: null, inGap: false }
+
+  // Walk forward to nearest valid point
+  let hiIdx = lo
+  while (hiIdx < n && (normalLine[hiIdx].value == null || !Number.isFinite(normalLine[hiIdx].value!))) hiIdx++
+
+  // Check for gap (null points between loIdx and hiIdx)
+  let inGap = false
+  for (let i = loIdx + 1; i < hiIdx; i++) {
+    if (normalLine[i].value == null) { inGap = true; break }
+  }
+  if (inGap) return { value: null, inGap: true }
+
+  const loPt = normalLine[loIdx]
+  if (loPt.t === targetT || hiIdx >= n) {
+    return { value: loPt.value!, inGap: false }
+  }
+
+  const hiPt = normalLine[hiIdx]
+  const frac = (targetT - loPt.t) / (hiPt.t - loPt.t)
+  return { value: loPt.value! + (hiPt.value! - loPt.value!) * frac, inGap: false }
+}
+
 interface CursorDotsProps {
   yDomain: [number, number]
   series: ChartSeries[]
@@ -753,32 +804,8 @@ function CursorDots(props: CursorDotsProps) {
   const circles: React.ReactNode[] = []
   for (const s of series) {
     if (hovered ? s.name !== hovered : hidden.has(s.name)) continue
-
-    let lo: ChartSeriesPoint | null = null
-    let hi: ChartSeriesPoint | null = null
-    for (const pt of s.normalLine) {
-      if (typeof pt.value !== 'number' || !Number.isFinite(pt.value)) continue
-      if (pt.t <= label) lo = pt
-      else { hi = pt; break }
-    }
-    if (!lo) continue
-
-    let inGap = false
-    if (hi) {
-      for (const pt of s.normalLine) {
-        if (pt.value == null && pt.t > lo.t && pt.t < hi.t) { inGap = true; break }
-      }
-    }
-    if (inGap) continue
-
-    let value: number
-    if (lo.t === label) {
-      value = lo.value!
-    } else if (hi) {
-      value = lo.value! + (hi.value! - lo.value!) * (label - lo.t) / (hi.t - lo.t)
-    } else {
-      value = lo.value!
-    }
+    const { value, inGap } = lookupSeriesValue(s.normalLine, label)
+    if (inGap || value == null) continue
     const cy = toY(value)
     if (!Number.isFinite(cy)) continue
     circles.push(
@@ -805,41 +832,26 @@ interface LatencyTooltipProps {
 function LatencyTooltip({ active, label, hidden, series, range }: LatencyTooltipProps) {
   if (!active || label == null) return null
 
-  const rows: { name: string; color: string; value: number | null }[] = []
+  const rows: { name: string; color: string; value: number | null; isTimeout: boolean }[] = []
   for (const s of series) {
     if (hidden.has(s.name)) continue
-    let lo: ChartSeriesPoint | null = null
-    let hi: ChartSeriesPoint | null = null
-    for (const pt of s.normalLine) {
-      if (typeof pt.value !== 'number' || !Number.isFinite(pt.value)) continue
-      if (pt.t <= label) lo = pt
-      else { hi = pt; break }
-    }
-    if (!lo) continue
-    let inGap = false
-    if (hi) {
-      for (const pt of s.normalLine) {
-        if (pt.value == null && pt.t > lo.t && pt.t < hi.t) { inGap = true; break }
-      }
-    }
-    let value: number | null = null
-    if (inGap) {
-      value = null
-    } else if (lo.t === label) {
-      value = typeof lo.value === 'number' && Number.isFinite(lo.value) ? lo.value : null
-    } else if (hi) {
-      value = lo.value! + (hi.value! - lo.value!) * (label - lo.t) / (hi.t - lo.t)
+    const normal = lookupSeriesValue(s.normalLine, label)
+    if (!normal.inGap && normal.value != null) {
+      rows.push({ name: s.name, color: s.color, value: normal.value, isTimeout: false })
+    } else if (normal.inGap) {
+      const timeout = lookupSeriesValue(s.timeoutLine, label)
+      rows.push({ name: s.name, color: s.color, value: null, isTimeout: !timeout.inGap && timeout.value != null })
     } else {
-      value = lo.value!
+      rows.push({ name: s.name, color: s.color, value: null, isTimeout: false })
     }
-    rows.push({ name: s.name, color: s.color, value })
   }
   if (rows.length === 0) return null
   rows.sort((a, b) => {
-    if (a.value == null && b.value == null) return 0
-    if (a.value == null) return 1
-    if (b.value == null) return -1
-    return a.value - b.value
+    const av = a.value, bv = b.value
+    if (av == null && bv == null) return 0
+    if (av == null) return 1
+    if (bv == null) return -1
+    return av - bv
   })
 
   return (
@@ -863,10 +875,11 @@ function LatencyTooltip({ active, label, hidden, series, range }: LatencyTooltip
           <span
             className={cn(
               'font-mono tabular-nums',
-              r.value == null && 'text-muted-foreground',
+              r.value == null && !r.isTimeout && 'text-muted-foreground',
+              r.isTimeout && 'text-red-500',
             )}
           >
-            {r.value == null ? '-' : ms(r.value)}
+            {r.value != null ? ms(r.value) : r.isTimeout ? '超时' : '-'}
           </span>
         </div>
       ))}
