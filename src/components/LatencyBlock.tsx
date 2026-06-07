@@ -93,7 +93,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     const ms = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
     const now = Date.now()
     return [now - ms, now]
-  }, [range])
+  }, [range, series])
 
   useEffect(() => {
     if (!maximized) return
@@ -421,6 +421,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
               stroke="hsl(var(--muted-foreground))"
               ticks={xTicks}
               interval={0}
+              allowDataOverflow
             />
             <YAxis
               key={`${yDomain[0]}-${yDomain[1]}`}
