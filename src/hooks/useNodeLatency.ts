@@ -18,7 +18,7 @@ const QUERY_TIMEOUT_MS = 20_000
 
 export function computeQueryLimit(windowMs: number, type: 'ping' | 'tcp_ping'): number {
   const rateMs = type === 'ping' ? 20_000 : 60_000
-  return Math.max(2000, Math.ceil(windowMs / rateMs))
+  return Math.max(2000, Math.ceil(windowMs / rateMs) + 50)
 }
 
 function clean(rows: TaskQueryResult[] | undefined): TaskQueryResult[] {
