@@ -90,7 +90,7 @@ export function useNodeLatency(
       cancelled = true
       clearInterval(timer)
     }
-  }, [pool, source, uuid, range])
+  }, [pool, source, uuid, range, pingSourceCount, tcpSourceCount])
 
   return { pingData, tcpData, loading }
 }
