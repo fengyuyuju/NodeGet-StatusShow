@@ -15,10 +15,16 @@ export const LATENCY_RANGES: { key: LatencyRange; label: string; ms: number }[] 
 
 const REFRESH_MS = 10_000
 const QUERY_TIMEOUT_MS = 20_000
+const MIN_QUERY_LIMIT = 5000
+const QUERY_LIMIT_HEADROOM = {
+  ping: 3,
+  tcp_ping: 1.5,
+} as const
 
 export function computeQueryLimit(windowMs: number, type: 'ping' | 'tcp_ping'): number {
   const rateMs = type === 'ping' ? 20_000 : 60_000
-  return Math.max(5000, Math.ceil(windowMs / rateMs * 1.5))
+  const expectedRows = Math.floor(windowMs / rateMs) + 1
+  return Math.max(MIN_QUERY_LIMIT, Math.ceil(expectedRows * QUERY_LIMIT_HEADROOM[type]))
 }
 
 function clean(rows: TaskQueryResult[] | undefined): TaskQueryResult[] {
