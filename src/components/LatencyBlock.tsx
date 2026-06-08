@@ -52,7 +52,6 @@ const QUALITY_SEGMENTS = [
   { max: 250, color: '#f6ed44' },
   { max: Infinity, color: '#f69833' },
 ] as const
-const LOSS_Q_COLOR = '#e6170f'
 const CANVAS_H = 16
 const HEIGHT_CAP = 400
 
@@ -639,7 +638,7 @@ function QualityCanvas({ bars }: { bars: Array<number | null> }) {
         }
         if (c.loss > 0) {
           const h = Math.max(1, Math.round(c.loss * CANVAS_H))
-          ctx.fillStyle = LOSS_Q_COLOR
+          ctx.fillStyle = TIMEOUT_COLOR
           ctx.fillRect(x, CANVAS_H - h, bw, h)
         }
       }

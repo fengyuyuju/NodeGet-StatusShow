@@ -18,7 +18,7 @@ const DISTINCT_COLORS = [
   '#0ea5e9', // 天蓝
 ]
 
-export const TIMEOUT_COLOR = '#ef4444'
+export const TIMEOUT_COLOR = '#e6170f'
 
 export const TYPE_LABEL: Record<LatencyType, string> = {
   ping: 'Ping',
