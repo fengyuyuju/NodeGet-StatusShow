@@ -469,7 +469,6 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
                   name={`${s.name}__timeout`}
                   stroke={TIMEOUT_COLOR}
                   strokeWidth={1}
-                  strokeOpacity={0.3}
                   dot={false}
                   activeDot={false}
                   isAnimationActive={false}
