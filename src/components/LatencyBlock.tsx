@@ -43,6 +43,7 @@ type SortField = 'p50' | 'p95' | 'p99' | 'jitter' | 'lossRate'
 type SortDir = 'asc' | 'desc'
 
 const ms = (v: number) => v.toFixed(1)
+const displayName = (name: string) => name.includes(':') ? name.slice(name.indexOf(':') + 1) : name
 
 const QUALITY_SEGMENTS = [
   { max: 50, color: '#26a91e' },
@@ -110,7 +111,8 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
   const chartData = useMemo(() => {
     const set = new Set<number>()
     for (const s of series) {
-      for (const p of s.points) set.add(p.t)
+      for (const p of s.normalLine) set.add(p.t)
+      for (const p of s.timeoutLine) set.add(p.t)
     }
     set.add(xDomain[0])
     set.add(xDomain[1])
@@ -163,27 +165,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
   }, [series, peakClipping])
 
   const stats = useMemo(() => {
-    const base = peakClipping
-      ? displaySeries.map(s => {
-          const rawStat = baseStats.find(bs => bs.name === s.name)!
-          const vals = s.points
-            .map(p => p.value)
-            .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
-          let avg: number | null = null
-          let jitter: number | null = null
-          if (vals.length) {
-            avg = vals.reduce((sum, v) => sum + v, 0) / vals.length
-            if (vals.length >= 2) {
-              jitter = vals.slice(1).reduce((sum, v, i) => sum + Math.abs(v - vals[i]), 0) / (vals.length - 1)
-            }
-          }
-          return {
-            ...rawStat,
-            avg,
-            jitter,
-          } satisfies LatencyStats
-        })
-      : baseStats
+    const base = baseStats
 
     const sorted = [...base]
     sorted.sort((a, b) => {
@@ -207,7 +189,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
       return sortDir === 'asc' ? av - bv : bv - av
     })
     return sorted
-  }, [baseStats, displaySeries, peakClipping, sortField, sortDir])
+  }, [baseStats, sortField, sortDir])
 
   const [nameColWidth, setNameColWidth] = useState(80)
 
@@ -269,10 +251,21 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
       return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100], clippedCount: 0 }
     }
-    const range = max - min || 1
-    const step = range / 3
-    const yTicks = [min, min + step, min + 2 * step, max]
-    const yDomain: [number, number] = [min, max]
+    const rawRange = max - min || 1
+    let yDomain: [number, number]
+    let yTicks: number[]
+    if (max - min < 0.001) {
+      const pad = Math.max(10, min * 0.1)
+      const lo = Math.max(0, min - pad)
+      const hi = max + pad
+      yDomain = [lo, hi]
+      const step = (hi - lo) / 3
+      yTicks = [lo, lo + step, lo + 2 * step, hi]
+    } else {
+      yDomain = [min, max]
+      const step = rawRange / 3
+      yTicks = [min, min + step, min + 2 * step, max]
+    }
     return { yDomain, yTicks, clippedCount }
   }, [displaySeries, series, caps, hidden, hovered, peakClipping])
 
@@ -425,7 +418,10 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
             />
             <YAxis
               key={`${yDomain[0]}-${yDomain[1]}`}
-              tickFormatter={v => `${Math.round(v)}`}
+              tickFormatter={v => {
+                const r = Math.round(v)
+                return Math.abs(v - r) < 0.001 ? `${r}` : v.toFixed(1)
+              }}
               tick={{ fontSize: 11 }}
               stroke="hsl(var(--muted-foreground))"
               width={32}
@@ -466,13 +462,29 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
                   type="linear"
                   dataKey="value"
                   name={`${s.name}__timeout`}
-                  stroke={s.color}
+                  stroke={TIMEOUT_COLOR}
                   strokeWidth={1}
-                  strokeOpacity={0.2}
+                  strokeOpacity={0.3}
                   dot={false}
                   activeDot={false}
                   isAnimationActive={false}
                 />,
+                ...(s.normalLine.length <= 1 && s.timeoutLine.length === 0 && s.points.some(p => typeof p.value === 'number' && Number.isFinite(p.value))
+                  ? [
+                      <Line
+                        key={`${s.name}-dots`}
+                        data={s.points.filter(p => typeof p.value === 'number' && Number.isFinite(p.value))}
+                        type="linear"
+                        dataKey="value"
+                        name={`${s.name}__dots`}
+                        stroke={s.color}
+                        strokeWidth={0}
+                        dot={{ r: 2.5, fill: s.color, stroke: s.color }}
+                        activeDot={false}
+                        isAnimationActive={false}
+                      />,
+                    ]
+                  : []),
               ]
             })}
             {/* Tooltip last = cursor renders on top of all lines */}
@@ -549,7 +561,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', width: 'max-content' }}
         >
           {stats.map(s => (
-            <span key={s.name} className="flex items-center pl-2 pr-3 -mr-1 whitespace-nowrap font-semibold">{s.name}</span>
+            <span key={s.name} className="flex items-center pl-2 pr-3 -mr-1 whitespace-nowrap font-semibold">{displayName(s.name)}</span>
           ))}
         </div>
       )}
@@ -670,7 +682,7 @@ function LatencyStatsRow({
       )}
     >
       <span className={cn('sticky left-0 shrink-0 flex items-center pl-2 pr-3 -mr-1 z-10', tableBg, 'group-hover:bg-muted')} style={{ width: nameColWidth }}>
-        <span className="truncate font-semibold" style={{ color }}>{name}</span>
+        <span className="truncate font-semibold" style={{ color }}>{displayName(name)}</span>
       </span>
       <span className="flex-1 max-w-[450px] min-w-[120px] ml-auto">
         <QualityCanvas bars={bars} />
@@ -769,8 +781,11 @@ function lookupSeriesValue(normalLine: ChartSeriesPoint[], targetT: number): { v
   if (inGap) return { value: null, inGap: true }
 
   const loPt = normalLine[loIdx]
-  if (loPt.t === targetT || hiIdx >= n) {
+  if (loPt.t === targetT) {
     return { value: loPt.value!, inGap: false }
+  }
+  if (hiIdx >= n) {
+    return { value: null, inGap: false }
   }
 
   const hiPt = normalLine[hiIdx]
@@ -843,7 +858,8 @@ function LatencyTooltip({ active, label, hidden, series, range }: LatencyTooltip
       const timeout = lookupSeriesValue(s.timeoutLine, label)
       rows.push({ name: s.name, color: s.color, value: null, isTimeout: !timeout.inGap && timeout.value != null })
     } else {
-      rows.push({ name: s.name, color: s.color, value: null, isTimeout: false })
+      const timeout = lookupSeriesValue(s.timeoutLine, label)
+      rows.push({ name: s.name, color: s.color, value: null, isTimeout: !timeout.inGap && timeout.value != null })
     }
   }
   if (rows.length === 0) return null
@@ -872,7 +888,7 @@ function LatencyTooltip({ active, label, hidden, series, range }: LatencyTooltip
       </div>
       {rows.map(r => (
         <div key={r.name} className="flex items-center gap-2">
-          <span className="flex-1 truncate font-semibold" style={{ color: r.color }}>{r.name}</span>
+          <span className="flex-1 truncate font-semibold" style={{ color: r.color }}>{displayName(r.name)}</span>
           <span
             className={cn(
               'font-mono tabular-nums',

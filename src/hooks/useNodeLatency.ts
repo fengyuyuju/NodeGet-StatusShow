@@ -76,8 +76,8 @@ export function useNodeLatency(
         ])
 
         if (cancelled) return
-        if (ping.status === 'fulfilled') setPingData(clean(ping.value))
-        if (tcp.status === 'fulfilled') setTcpData(clean(tcp.value))
+        setPingData(ping.status === 'fulfilled' ? clean(ping.value) : [])
+        setTcpData(tcp.status === 'fulfilled' ? clean(tcp.value) : [])
       } finally {
         inFlight = false
         if (!cancelled) setLoading(false)

@@ -33,12 +33,12 @@ const SNAP_INTERVAL = 20000
 
 function normalizeTs(ts: number) {
   const ms = ts < 1_000_000_000_000 ? ts * 1000 : ts
-  return Math.round(ms / SNAP_INTERVAL) * SNAP_INTERVAL
+  return Math.floor(ms / SNAP_INTERVAL) * SNAP_INTERVAL
 }
 
 function pickValue(row: TaskQueryResult, type: LatencyType): number | null {
   const v = row.task_event_result?.[type]
-  return row.success && typeof v === 'number' ? v : null
+  return row.success && typeof v === 'number' && Number.isFinite(v) ? v : null
 }
 
 function seriesNames(rows: TaskQueryResult[]) {
@@ -86,7 +86,9 @@ function buildLineData(segs: Segment[], type: 'normal' | 'timeout'): ChartSeries
       out.push({ t: prevEndT, value: null })
       out.push({ t: seg.a.t, value: seg.a.value })
     }
-    out.push({ t: seg.b.t, value: seg.b.value })
+    if (seg.b.t !== seg.a.t || seg.b.value !== seg.a.value) {
+      out.push({ t: seg.b.t, value: seg.b.value })
+    }
     prevEndT = seg.b.t
   }
   return out
@@ -115,13 +117,47 @@ export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
     }
 
     const segs: Segment[] = []
-    for (let k = 0; k < validIdx.length - 1; k++) {
-      const i = validIdx[k]
-      const j = validIdx[k + 1]
+
+    if (validIdx.length > 0) {
+      const first = validIdx[0]
+      if (first > 0) {
+        segs.push({
+          type: 'timeout',
+          a: { t: points[0].t, value: 0 },
+          b: { t: points[first].t, value: 0 },
+        })
+      }
+
+      for (let k = 0; k < validIdx.length - 1; k++) {
+        const i = validIdx[k]
+        const j = validIdx[k + 1]
+        segs.push({
+          type: j - i === 1 ? 'normal' : 'timeout',
+          a: points[i],
+          b: points[j],
+        })
+      }
+
+      if (validIdx.length === 1) {
+        const p = points[validIdx[0]]
+        segs.push({ type: 'normal', a: p, b: p })
+      }
+
+      const last = validIdx[validIdx.length - 1]
+      if (last < points.length - 1) {
+        segs.push({
+          type: 'timeout',
+          a: { t: points[last].t, value: 0 },
+          b: { t: points[points.length - 1].t, value: 0 },
+        })
+      }
+    } else if (points.length > 0) {
+      const t0 = points[0].t
+      const t1 = points[points.length - 1].t
       segs.push({
-        type: j - i === 1 ? 'normal' : 'timeout',
-        a: points[i],
-        b: points[j],
+        type: 'timeout',
+        a: { t: t0, value: 0 },
+        b: { t: t1 === t0 ? t0 + SNAP_INTERVAL : t1, value: 0 },
       })
     }
 
@@ -268,7 +304,7 @@ export function buildMergedLatencyChart(dataMap: Partial<Record<LatencyType, Tas
   const allSeries: ChartSeries[] = []
   for (const type of types) {
     for (const s of perType.get(type) ?? []) {
-      allSeries.push({ ...s, color: generateSpectrumColor(idx, totalSeries) })
+      allSeries.push({ ...s, name: `${type}:${s.name}`, color: generateSpectrumColor(idx, totalSeries) })
       idx++
     }
   }
@@ -294,16 +330,17 @@ export function computeMergedLatencyStats(dataMap: Partial<Record<LatencyType, T
       if (v != null) vals.push(v)
     }
 
+    const name = `${type}:${sourceName}`
     const color = generateSpectrumColor(idx, total)
     const lossRate = list.length ? ((list.length - vals.length) / list.length) * 100 : 0
-    if (!vals.length) return { name: sourceName, color, avg: null, p50: null, p95: null, p99: null, jitter: null, lossRate }
+    if (!vals.length) return { name, color, avg: null, p50: null, p95: null, p99: null, jitter: null, lossRate }
 
     const avg = vals.reduce((s, v) => s + v, 0) / vals.length
     const jitter = vals.length >= 2
       ? vals.slice(1).reduce((s, v, i) => s + Math.abs(v - vals[i]), 0) / (vals.length - 1)
       : null
     const sorted = [...vals].sort((a, b) => a - b)
-    return { name: sourceName, color, avg, p50: percentile(sorted, 0.50), p95: percentile(sorted, 0.95), p99: percentile(sorted, 0.99), jitter, lossRate }
+    return { name, color, avg, p50: percentile(sorted, 0.50), p95: percentile(sorted, 0.95), p99: percentile(sorted, 0.99), jitter, lossRate }
   })
 
   return allStats.sort((a, b) => {

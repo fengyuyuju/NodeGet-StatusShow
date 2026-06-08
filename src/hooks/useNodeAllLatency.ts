@@ -73,6 +73,8 @@ export function useNodeAllLatency(
         setErrors([...ping.errors, ...tcp.errors])
       } catch (err) {
         if (!cancelled) {
+          setPingData([])
+          setTcpData([])
           setErrors([{ source: 'fanout', error: err instanceof Error ? err.message : String(err) }])
         }
       } finally {
