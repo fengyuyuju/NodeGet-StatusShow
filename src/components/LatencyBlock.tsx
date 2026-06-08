@@ -45,6 +45,15 @@ type SortDir = 'asc' | 'desc'
 const ms = (v: number) => v.toFixed(1)
 const displayName = (name: string) => name.includes(':') ? name.slice(name.indexOf(':') + 1) : name
 
+function tickFormat(ticks: number[]): (v: number) => string {
+  for (let i = 1; i < ticks.length; i++) {
+    if (Math.round(ticks[i]) === Math.round(ticks[i - 1])) {
+      return (v: number) => v.toFixed(1)
+    }
+  }
+  return (v: number) => `${Math.round(v)}`
+}
+
 const QUALITY_SEGMENTS = [
   { max: 50, color: '#26a91e' },
   { max: 100, color: '#43dd3e' },
@@ -417,13 +426,10 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
             />
             <YAxis
               key={`${yDomain[0]}-${yDomain[1]}`}
-              tickFormatter={v => {
-                const r = Math.round(v)
-                return Math.abs(v - r) < 0.001 ? `${r}` : v.toFixed(1)
-              }}
+              tickFormatter={tickFormat(yTicks)}
               tick={{ fontSize: 11 }}
               stroke="hsl(var(--muted-foreground))"
-              width={32}
+              width={44}
               domain={yDomain}
               ticks={yTicks}
               allowDataOverflow
