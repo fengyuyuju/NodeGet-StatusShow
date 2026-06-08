@@ -675,39 +675,40 @@ function LatencyStatsRow({
 }) {
   const { name, color, p50, p95, p99, jitter, lossRate } = stat
   const bars = useMemo(() => points.map(p => p.value), [points])
+  const dimCls = cn('transition-opacity', hidden && 'opacity-35')
 
   return (
     <div
       onClick={onToggle}
       data-source={name}
       className={cn(
-        'flex items-center gap-1 pl-0 pr-2 py-1 text-xs cursor-pointer select-none transition-opacity group hover:bg-muted min-w-[530px]',
+        'flex items-center gap-1 pl-0 pr-2 py-1 text-xs cursor-pointer select-none group hover:bg-muted min-w-[530px]',
         tableBg,
-        hidden && 'opacity-35',
       )}
     >
       <span className={cn('sticky left-0 shrink-0 flex items-center pl-2 pr-3 -mr-1 z-10', tableBg, 'group-hover:bg-muted')} style={{ width: nameColWidth }}>
-        <span className="truncate font-semibold" style={{ color }}>{displayName(name)}</span>
+        <span className={cn('truncate font-semibold', dimCls)} style={{ color }}>{displayName(name)}</span>
       </span>
-      <span className="flex-1 max-w-[450px] min-w-[120px] ml-auto">
+      <span className={cn('flex-1 max-w-[450px] min-w-[120px] ml-auto', dimCls)}>
         <QualityCanvas bars={bars} />
       </span>
-      <span className="w-[52px] text-right tabular-nums font-mono">
+      <span className={cn('w-[52px] text-right tabular-nums font-mono', dimCls)}>
         {p50 != null ? ms(p50) : '—'}
       </span>
-      <span className="w-[52px] text-right tabular-nums font-mono">
+      <span className={cn('w-[52px] text-right tabular-nums font-mono', dimCls)}>
         {p95 != null ? ms(p95) : '—'}
       </span>
-      <span className="w-[52px] text-right tabular-nums font-mono">
+      <span className={cn('w-[52px] text-right tabular-nums font-mono', dimCls)}>
         {p99 != null ? ms(p99) : '—'}
       </span>
-      <span className="w-10 text-right tabular-nums font-mono">
+      <span className={cn('w-10 text-right tabular-nums font-mono', dimCls)}>
         {jitter != null ? ms(jitter) : '—'}
       </span>
       <span
         className={cn(
           'w-10 text-right tabular-nums font-mono',
           lossRate >= 5 && 'text-red-500 font-medium',
+          dimCls,
         )}
       >
         {lossRate.toFixed(1)}
