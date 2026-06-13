@@ -31,6 +31,11 @@ export function generateSpectrumColor(index: number, _total: number): string {
 
 const SNAP_INTERVAL = 20000
 
+const TYPE_PERIOD_MS: Record<LatencyType, number> = {
+  ping: SNAP_INTERVAL,
+  tcp_ping: 60000,
+}
+
 function normalizeTs(ts: number) {
   const ms = ts < 1_000_000_000_000 ? ts * 1000 : ts
   return Math.floor(ms / SNAP_INTERVAL) * SNAP_INTERVAL
@@ -61,7 +66,7 @@ export interface ChartSeries {
 }
 
 interface Segment {
-  type: 'normal' | 'timeout'
+  type: 'normal' | 'timeout' | 'gap'
   a: ChartSeriesPoint
   b: ChartSeriesPoint
 }
@@ -71,6 +76,20 @@ function buildLineData(segs: Segment[], type: 'normal' | 'timeout'): ChartSeries
   let prevEndT: number | null = null
   let needGap = false
   for (const seg of segs) {
+    // gap 段（相邻有效点间无采样、超过采样周期）：保留两端点，中间插入 null 断开
+    if (seg.type === 'gap' && type === 'normal') {
+      if (prevEndT == null) {
+        if (needGap && out.length > 0) {
+          out.push({ t: (out[out.length - 1].t + seg.a.t) / 2, value: null })
+        }
+        needGap = false
+        out.push({ t: seg.a.t, value: seg.a.value })
+      }
+      out.push({ t: (seg.a.t + seg.b.t) / 2, value: null })
+      out.push({ t: seg.b.t, value: seg.b.value })
+      prevEndT = seg.b.t
+      continue
+    }
     if (seg.type !== type) {
       if (prevEndT != null) needGap = true
       prevEndT = null
@@ -110,6 +129,7 @@ export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
 
   const series: ChartSeries[] = names.map((name, idx) => {
     const points = (bySource.get(name) ?? []).sort((a, b) => a.t - b.t)
+    const periodMs = TYPE_PERIOD_MS[type]
 
     const validIdx: number[] = []
     for (let i = 0; i < points.length; i++) {
@@ -131,8 +151,10 @@ export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
       for (let k = 0; k < validIdx.length - 1; k++) {
         const i = validIdx[k]
         const j = validIdx[k + 1]
+        const sampleAdjacent = j - i === 1
+        const noDataGap = sampleAdjacent && points[j].t - points[i].t > periodMs
         segs.push({
-          type: j - i === 1 ? 'normal' : 'timeout',
+          type: noDataGap ? 'gap' : sampleAdjacent ? 'normal' : 'timeout',
           a: points[i],
           b: points[j],
         })
