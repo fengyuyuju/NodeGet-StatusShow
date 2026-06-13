@@ -76,7 +76,7 @@ function buildLineData(segs: Segment[], type: 'normal' | 'timeout'): ChartSeries
   let prevEndT: number | null = null
   let needGap = false
   for (const seg of segs) {
-    // gap 段（相邻有效点间无采样、超过采样周期）：保留两端点，中间插入 null 断开
+    // gap 段（相邻有效点间连续无采样、超过容忍阈值）：保留两端点，中间插入 null 断开
     if (seg.type === 'gap' && type === 'normal') {
       if (prevEndT == null) {
         if (needGap && out.length > 0) {
@@ -152,7 +152,7 @@ export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
         const i = validIdx[k]
         const j = validIdx[k + 1]
         const sampleAdjacent = j - i === 1
-        const noDataGap = sampleAdjacent && points[j].t - points[i].t > periodMs
+        const noDataGap = sampleAdjacent && points[j].t - points[i].t > periodMs * 3
         segs.push({
           type: noDataGap ? 'gap' : sampleAdjacent ? 'normal' : 'timeout',
           a: points[i],
