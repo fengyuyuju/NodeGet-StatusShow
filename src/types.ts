@@ -159,8 +159,6 @@ export type Sort =
 
 export type SortDir = 'asc' | 'desc'
 
-export type LatencyType = 'ping' | 'tcp_ping'
-
 export interface Usage {
   cpu?: number
   mem?: number

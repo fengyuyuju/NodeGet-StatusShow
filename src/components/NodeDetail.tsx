@@ -72,25 +72,18 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
     return () => el.removeEventListener('scroll', onScroll)
   }, [nodeUuid])
 
-  const pingSourceCount = useMemo(() => {
+  const sourceCount = useMemo(() => {
     if (!nodeUuid) return 1
-    const count = sources.filter(s => s.uuids.has(nodeUuid) && s.type !== 'tcp_ping').length
+    const count = sources.filter(s => s.uuids.has(nodeUuid)).length
     return count || 1
   }, [sources, nodeUuid])
 
-  const tcpSourceCount = useMemo(() => {
-    if (!nodeUuid) return 1
-    const count = sources.filter(s => s.uuids.has(nodeUuid) && s.type !== 'ping').length
-    return count || 1
-  }, [sources, nodeUuid])
-
-  const { pingData, tcpData, loading: latencyLoading } = useNodeLatency(
+  const { data, loading: latencyLoading } = useNodeLatency(
     pool,
     node?.source ?? null,
     node?.uuid ?? null,
     latencyRange,
-    pingSourceCount,
-    tcpSourceCount,
+    sourceCount,
   )
 
   if (!node) return null
@@ -214,7 +207,7 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
 
         <LatencyBlock
           title="延迟"
-          merged={{ ping: pingData, tcp_ping: tcpData }}
+          rows={data}
           loading={latencyLoading}
           range={latencyRange}
           onRangeChange={setLatencyRange}

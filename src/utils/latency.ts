@@ -1,4 +1,4 @@
-import type { LatencyType, TaskQueryResult } from '../types'
+import type { TaskQueryResult } from '../types'
 
 const DISTINCT_COLORS = [
   '#3b82f6', // 蓝
@@ -20,29 +20,20 @@ const DISTINCT_COLORS = [
 
 export const TIMEOUT_COLOR = '#e6170f'
 
-export const TYPE_LABEL: Record<LatencyType, string> = {
-  ping: 'Ping',
-  tcp_ping: 'TCP Ping',
-}
-
 export function generateSpectrumColor(index: number, _total: number): string {
   return DISTINCT_COLORS[index % DISTINCT_COLORS.length]
 }
 
-const SNAP_INTERVAL = 20000
-
-const TYPE_PERIOD_MS: Record<LatencyType, number> = {
-  ping: SNAP_INTERVAL,
-  tcp_ping: 60000,
-}
+// tcp_ping 固定 1 分钟采样：时间戳对齐网格、断线判定与查询额度计算共用此周期
+export const TCP_PING_PERIOD_MS = 60_000
 
 function normalizeTs(ts: number) {
   const ms = ts < 1_000_000_000_000 ? ts * 1000 : ts
-  return Math.floor(ms / SNAP_INTERVAL) * SNAP_INTERVAL
+  return Math.floor(ms / TCP_PING_PERIOD_MS) * TCP_PING_PERIOD_MS
 }
 
-function pickValue(row: TaskQueryResult, type: LatencyType): number | null {
-  const v = row.task_event_result?.[type]
+function pickValue(row: TaskQueryResult): number | null {
+  const v = row.task_event_result?.tcp_ping
   return row.success && typeof v === 'number' && Number.isFinite(v) ? v : null
 }
 
@@ -113,7 +104,23 @@ function buildLineData(segs: Segment[], type: 'normal' | 'timeout'): ChartSeries
   return out
 }
 
-export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
+// 同一采样槽（分钟）存在多条记录时（重试/执行漂移），优先保留有效值，避免重复点产生零宽线段
+function pickLatestPerSlot(sorted: ChartSeriesPoint[]): ChartSeriesPoint[] {
+  const out: ChartSeriesPoint[] = []
+  for (let i = 0; i < sorted.length;) {
+    let j = i
+    while (j + 1 < sorted.length && sorted[j + 1].t === sorted[i].t) j++
+    let pick = j
+    for (let k = j; k >= i; k--) {
+      if (sorted[k].value != null) { pick = k; break }
+    }
+    out.push(sorted[pick])
+    i = j + 1
+  }
+  return out
+}
+
+export function buildLatencyChart(rows: TaskQueryResult[]) {
   const names = seriesNames(rows)
   const total = names.length
   const bySource = new Map<string, ChartSeriesPoint[]>()
@@ -123,13 +130,13 @@ export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
     const name = r.cron_source || '未知'
     bySource.get(name)?.push({
       t: normalizeTs(r.timestamp),
-      value: pickValue(r, type),
+      value: pickValue(r),
     })
   }
 
   const series: ChartSeries[] = names.map((name, idx) => {
-    const points = (bySource.get(name) ?? []).sort((a, b) => a.t - b.t)
-    const periodMs = TYPE_PERIOD_MS[type]
+    const points = pickLatestPerSlot((bySource.get(name) ?? []).sort((a, b) => a.t - b.t))
+    const periodMs = TCP_PING_PERIOD_MS
 
     const validIdx: number[] = []
     for (let i = 0; i < points.length; i++) {
@@ -152,7 +159,8 @@ export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
         const i = validIdx[k]
         const j = validIdx[k + 1]
         const sampleAdjacent = j - i === 1
-        const noDataGap = sampleAdjacent && points[j].t - points[i].t > periodMs * 3
+        // 时间戳已对齐到分钟网格：允许缺 1 个采样，连续缺 2 个（>2 周期）判为断线
+        const noDataGap = sampleAdjacent && points[j].t - points[i].t > periodMs * 2
         segs.push({
           type: noDataGap ? 'gap' : sampleAdjacent ? 'normal' : 'timeout',
           a: points[i],
@@ -179,7 +187,7 @@ export function buildLatencyChart(rows: TaskQueryResult[], type: LatencyType) {
       segs.push({
         type: 'timeout',
         a: { t: t0, value: 0 },
-        b: { t: t1 === t0 ? t0 + SNAP_INTERVAL : t1, value: 0 },
+        b: { t: t1 === t0 ? t0 + TCP_PING_PERIOD_MS : t1, value: 0 },
       })
     }
 
@@ -273,14 +281,14 @@ export function computePeakClipCap(values: number[]): number | null {
   return max > p99 ? p99 : null
 }
 
-export function computeLatencyStats(rows: TaskQueryResult[], type: LatencyType): LatencyStats[] {
+export function computeLatencyStats(rows: TaskQueryResult[]): LatencyStats[] {
   const names = seriesNames(rows)
   const total = names.length
   const stats = names.map<LatencyStats>((name, i) => {
     const list = rows.filter(r => (r.cron_source || '未知') === name)
     const vals: number[] = []
     for (const r of list) {
-      const v = pickValue(r, type)
+      const v = pickValue(r)
       if (v != null) vals.push(v)
     }
 
@@ -307,68 +315,6 @@ export function computeLatencyStats(rows: TaskQueryResult[], type: LatencyType):
     if (av !== bv) return av - bv
     const aj = a.jitter ?? Infinity
     const bj = b.jitter ?? Infinity
-    if (aj !== bj) return aj - bj
-    return a.lossRate - b.lossRate
-  })
-}
-
-export function buildMergedLatencyChart(dataMap: Partial<Record<LatencyType, TaskQueryResult[]>>) {
-  const types = (Object.keys(dataMap) as LatencyType[]).filter(t => dataMap[t]?.length)
-  const perType = new Map<LatencyType, ChartSeries[]>()
-  let totalSeries = 0
-  for (const type of types) {
-    const { series } = buildLatencyChart(dataMap[type]!, type)
-    perType.set(type, series)
-    totalSeries += series.length
-  }
-
-  let idx = 0
-  const allSeries: ChartSeries[] = []
-  for (const type of types) {
-    for (const s of perType.get(type) ?? []) {
-      allSeries.push({ ...s, name: `${type}:${s.name}`, color: generateSpectrumColor(idx, totalSeries) })
-      idx++
-    }
-  }
-  return { series: allSeries }
-}
-
-export function computeMergedLatencyStats(dataMap: Partial<Record<LatencyType, TaskQueryResult[]>>): LatencyStats[] {
-  const types = (Object.keys(dataMap) as LatencyType[]).filter(t => dataMap[t]?.length)
-  const entries: { type: LatencyType; name: string }[] = []
-  for (const type of types) {
-    for (const name of seriesNames(dataMap[type]!)) {
-      entries.push({ type, name })
-    }
-  }
-
-  const total = entries.length
-  const allStats = entries.map(({ type, name: sourceName }, idx) => {
-    const rows = dataMap[type]!
-    const list = rows.filter(r => (r.cron_source || '未知') === sourceName)
-    const vals: number[] = []
-    for (const r of list) {
-      const v = pickValue(r, type)
-      if (v != null) vals.push(v)
-    }
-
-    const name = `${type}:${sourceName}`
-    const color = generateSpectrumColor(idx, total)
-    const lossRate = list.length ? ((list.length - vals.length) / list.length) * 100 : 0
-    if (!vals.length) return { name, color, avg: null, p50: null, p95: null, p99: null, jitter: null, lossRate }
-
-    const avg = vals.reduce((s, v) => s + v, 0) / vals.length
-    const jitter = vals.length >= 2
-      ? vals.slice(1).reduce((s, v, i) => s + Math.abs(v - vals[i]), 0) / (vals.length - 1)
-      : null
-    const sorted = [...vals].sort((a, b) => a - b)
-    return { name, color, avg, p50: percentile(sorted, 0.50), p95: percentile(sorted, 0.95), p99: percentile(sorted, 0.99), jitter, lossRate }
-  })
-
-  return allStats.sort((a, b) => {
-    const av = a.avg ?? Infinity, bv = b.avg ?? Infinity
-    if (av !== bv) return av - bv
-    const aj = a.jitter ?? Infinity, bj = b.jitter ?? Infinity
     if (aj !== bj) return aj - bj
     return a.lossRate - b.lossRate
   })

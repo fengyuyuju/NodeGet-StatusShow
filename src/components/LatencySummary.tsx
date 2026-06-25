@@ -20,14 +20,6 @@ interface Props {
 
 const MOBILE_DROPDOWN_GAP = 4
 
-function mergePingTcp(pingRows: TaskQueryResult[], tcpRows: TaskQueryResult[]): TaskQueryResult[] {
-  const tcpMapped = tcpRows.map(r => ({
-    ...r,
-    task_event_result: { ...r.task_event_result, ping: r.task_event_result?.tcp_ping },
-  }))
-  return [...pingRows, ...tcpMapped].sort((a, b) => a.timestamp - b.timestamp)
-}
-
 function remapByTarget(rows: TaskQueryResult[], nodes: Map<string, Node>): TaskQueryResult[] {
   return rows.map(r => {
     const node = nodes.get(r.uuid)
@@ -94,29 +86,24 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
     ? (selectedNodeUuid && nodeList.some(n => n.uuid === selectedNodeUuid) ? selectedNodeUuid : nodeList[0]?.uuid ?? null)
     : null
 
-  const sourceNodeCount = selectedSource?.uuidCount ?? 1
+  const nodeCount = selectedSource?.uuidCount ?? 1
 
   const sourceLatency = useSourceLatency(
     pool,
     active === 'source' ? selectedSource?.name ?? null : null,
     range,
-    selectedSource && selectedSource.type !== 'tcp_ping' ? sourceNodeCount : 1,
-    selectedSource && selectedSource.type !== 'ping' ? sourceNodeCount : 1,
+    nodeCount,
   )
 
-  const pingSourceCount = activeNodeUuid
-    ? sources.filter(s => s.uuids.has(activeNodeUuid) && s.type !== 'tcp_ping').length || 1
-    : 1
-  const tcpSourceCount = activeNodeUuid
-    ? sources.filter(s => s.uuids.has(activeNodeUuid) && s.type !== 'ping').length || 1
+  const sourceCount = activeNodeUuid
+    ? sources.filter(s => s.uuids.has(activeNodeUuid)).length || 1
     : 1
 
   const nodeLatency = useNodeAllLatency(
     pool,
     activeNodeUuid,
     range,
-    pingSourceCount,
-    tcpSourceCount,
+    sourceCount,
   )
 
   const loading = active === 'source' ? sourceLatency.loading : nodeLatency.loading
@@ -124,26 +111,22 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
 
   const sourceRows = useMemo(
     () => {
-      const rows = mergePingTcp(sourceLatency.pingData, sourceLatency.tcpData)
+      const rows = sourceLatency.data
       if (sources.length === 0) return remapByTarget(rows, nodes)
       const activeUuids = selectedSource?.uuids
       if (!activeUuids) return remapByTarget(rows, nodes)
       return remapByTarget(rows.filter(r => activeUuids.has(r.uuid)), nodes)
     },
-    [sourceLatency.pingData, sourceLatency.tcpData, selectedSource, nodes, sources.length],
+    [sourceLatency.data, selectedSource, nodes, sources],
   )
 
-  const nodeMerged = useMemo(() => {
-    if (sources.length === 0 || !activeNodeUuid)
-      return { ping: nodeLatency.pingData, tcp_ping: nodeLatency.tcpData }
+  const nodeRows = useMemo(() => {
+    if (sources.length === 0 || !activeNodeUuid) return nodeLatency.data
     const activeSourceNames = new Set<string>()
     for (const s of sources) if (s.uuids.has(activeNodeUuid)) activeSourceNames.add(s.name)
-    if (!activeSourceNames.size) return { ping: [] as TaskQueryResult[], tcp_ping: [] as TaskQueryResult[] }
-    return {
-      ping: nodeLatency.pingData.filter(r => activeSourceNames.has(r.cron_source ?? '')),
-      tcp_ping: nodeLatency.tcpData.filter(r => activeSourceNames.has(r.cron_source ?? '')),
-    }
-  }, [nodeLatency.pingData, nodeLatency.tcpData, activeNodeUuid, sources])
+    if (!activeSourceNames.size) return []
+    return nodeLatency.data.filter(r => activeSourceNames.has(r.cron_source ?? ''))
+  }, [nodeLatency.data, activeNodeUuid, sources])
 
   const selectedNode = activeNodeUuid ? nodes.get(activeNodeUuid) ?? null : null
   const currentTitle = active === 'source'
@@ -369,7 +352,6 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
               titleSlot={mobileDropdown}
               sourceLabel="来源"
               rows={sourceRows}
-              type="ping"
               loading={loading}
               range={range}
               onRangeChange={setRange}
@@ -379,7 +361,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
               title={currentTitle}
               titleSlot={mobileDropdown}
               sourceLabel="任务"
-              merged={nodeMerged}
+              rows={nodeRows}
               loading={loading}
               range={range}
               onRangeChange={setRange}

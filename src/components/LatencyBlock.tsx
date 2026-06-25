@@ -13,23 +13,19 @@ import { Card } from './ui/card'
 import { cn } from '../utils/cn'
 import {
   buildLatencyChart,
-  buildMergedLatencyChart,
   computePeakClipCap,
   computeLatencyStats,
-  computeMergedLatencyStats,
   TIMEOUT_COLOR,
   type ChartSeries,
   type ChartSeriesPoint,
   type LatencyStats,
 } from '../utils/latency'
 import { LATENCY_RANGES, type LatencyRange } from '../hooks/useNodeLatency'
-import type { LatencyType, TaskQueryResult } from '../types'
+import type { TaskQueryResult } from '../types'
 
 export interface LatencyBlockProps {
   title: string
-  rows?: TaskQueryResult[]
-  type?: LatencyType
-  merged?: Partial<Record<LatencyType, TaskQueryResult[]>>
+  rows: TaskQueryResult[]
   loading: boolean
   range: LatencyRange
   onRangeChange: (r: LatencyRange) => void
@@ -43,7 +39,6 @@ type SortField = 'p50' | 'p95' | 'p99' | 'jitter' | 'lossRate'
 type SortDir = 'asc' | 'desc'
 
 const ms = (v: number) => v.toFixed(1)
-const displayName = (name: string) => name.includes(':') ? name.slice(name.indexOf(':') + 1) : name
 
 function tickFormat(ticks: number[]): (v: number) => string {
   for (let i = 1; i < ticks.length; i++) {
@@ -86,9 +81,9 @@ function downsampleBars(bars: Array<number | null>, maxBars: number): BarChunk[]
   return result
 }
 
-export function LatencyBlock({ title, rows, type, merged, loading, range, onRangeChange, chartClass, statsClass, titleSlot, sourceLabel = '来源' }: LatencyBlockProps) {
-  const { series } = useMemo(() => merged ? buildMergedLatencyChart(merged) : buildLatencyChart(rows!, type!), [merged, rows, type])
-  const baseStats = useMemo(() => merged ? computeMergedLatencyStats(merged) : computeLatencyStats(rows!, type!), [merged, rows, type])
+export function LatencyBlock({ title, rows, loading, range, onRangeChange, chartClass, statsClass, titleSlot, sourceLabel = '来源' }: LatencyBlockProps) {
+  const { series } = useMemo(() => buildLatencyChart(rows), [rows])
+  const baseStats = useMemo(() => computeLatencyStats(rows), [rows])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   const [peakClipping, setPeakClipping] = useState(true)
   const [hovered, setHovered] = useState<string | null>(null)
@@ -96,7 +91,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [maximized, setMaximized] = useState(false)
   const empty = series.every(s => s.points.length === 0)
-  const emptyLabel = merged ? '延迟' : type
+  const emptyLabel = '延迟'
 
   const xDomain = useMemo((): [number, number] => {
     const ms = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
@@ -194,6 +189,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
         av = a.lossRate
         bv = b.lossRate
       }
+      if (av === bv) return 0
       return sortDir === 'asc' ? av - bv : bv - av
     })
     return sorted
@@ -225,25 +221,12 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
     }
   }
 
-  const { yDomain, yTicks, clippedCount } = useMemo(() => {
+  const { yDomain, yTicks } = useMemo(() => {
     const visibleDisplay = displaySeries.filter(s =>
       hovered ? s.name === hovered : !hidden.has(s.name),
     )
     if (visibleDisplay.length === 0) {
-      return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100], clippedCount: 0 }
-    }
-    let clippedCount = 0
-    if (peakClipping) {
-      const rawVisible = hovered
-        ? series.filter(s => s.name === hovered)
-        : series.filter(s => !hidden.has(s.name))
-      for (const s of rawVisible) {
-        const cap = caps.get(s.name)
-        if (cap == null) continue
-        for (const pt of s.points) {
-          if (pt.value != null && pt.value > cap) clippedCount++
-        }
-      }
+      return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100] }
     }
     let min = Infinity
     let max = -Infinity
@@ -257,7 +240,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
       }
     }
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100], clippedCount: 0 }
+      return { yDomain: [0, 100] as [number, number], yTicks: [0, 25, 50, 75, 100] }
     }
     const rawRange = max - min || 1
     let yDomain: [number, number]
@@ -274,8 +257,8 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
       const step = rawRange / 3
       yTicks = [min, min + step, min + 2 * step, max]
     }
-    return { yDomain, yTicks, clippedCount }
-  }, [displaySeries, series, caps, hidden, hovered, peakClipping])
+    return { yDomain, yTicks }
+  }, [displaySeries, hidden, hovered])
 
   const rangeRef = useRef<HTMLDivElement>(null)
   const [indicator, setIndicator] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
@@ -457,7 +440,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
                   name={s.name}
                   stroke={s.color}
                   strokeWidth={1}
-                  dot={false}
+                  dot={isolatedDot(s)}
                   activeDot={false}
                   isAnimationActive={false}
                 />,
@@ -473,27 +456,11 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
                   activeDot={false}
                   isAnimationActive={false}
                 />,
-                ...(s.normalLine.length <= 1 && s.timeoutLine.length === 0 && s.points.some(p => typeof p.value === 'number' && Number.isFinite(p.value))
-                  ? [
-                      <Line
-                        key={`${s.name}-dots`}
-                        data={s.points.filter(p => typeof p.value === 'number' && Number.isFinite(p.value))}
-                        type="linear"
-                        dataKey="value"
-                        name={`${s.name}__dots`}
-                        stroke={s.color}
-                        strokeWidth={0}
-                        dot={{ r: 2.5, fill: s.color, stroke: s.color }}
-                        activeDot={false}
-                        isAnimationActive={false}
-                      />,
-                    ]
-                  : []),
               ]
             })}
             {/* Tooltip last = cursor renders on top of all lines */}
             <Tooltip
-              content={<LatencyTooltip hidden={hidden} series={displaySeries} range={range} />}
+              content={<LatencyTooltip hidden={hidden} hovered={hovered} series={displaySeries} range={range} />}
               cursor={<CursorDots yDomain={yDomain} series={displaySeries} hidden={hidden} hovered={hovered} />}
             />
           </LineChart>
@@ -565,7 +532,7 @@ export function LatencyBlock({ title, rows, type, merged, loading, range, onRang
           style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', width: 'max-content' }}
         >
           {stats.map(s => (
-            <span key={s.name} className="flex items-center pl-2 pr-3 -mr-1 whitespace-nowrap font-semibold">{displayName(s.name)}</span>
+            <span key={s.name} className="flex items-center pl-2 pr-3 -mr-1 whitespace-nowrap font-semibold">{s.name}</span>
           ))}
         </div>
       )}
@@ -686,7 +653,7 @@ function LatencyStatsRow({
       )}
     >
       <span className={cn('sticky left-0 shrink-0 flex items-center pl-2 pr-3 -mr-1 z-10', tableBg, 'group-hover:bg-muted')} style={{ width: nameColWidth }}>
-        <span className={cn('truncate font-semibold', dimCls)} style={{ color }}>{displayName(name)}</span>
+        <span className={cn('truncate font-semibold', dimCls)} style={{ color }}>{name}</span>
       </span>
       <span className={cn('flex-1 max-w-[450px] min-w-[120px] ml-auto', dimCls)}>
         <QualityCanvas bars={bars} />
@@ -798,6 +765,28 @@ function lookupSeriesValue(normalLine: ChartSeriesPoint[], targetT: number): { v
   return { value: loPt.value! + (hiPt.value! - loPt.value!) * frac, inGap: false }
 }
 
+interface DotProps {
+  cx?: number
+  cy?: number
+  index?: number
+  payload?: ChartSeriesPoint
+}
+
+/** 主连线上孤立样本点（前后均无连接）的圆点渲染器：让稀疏断开的有效点可见 */
+function isolatedDot(series: ChartSeries) {
+  return (props: DotProps) => {
+    const { cx, cy, index = 0, payload } = props
+    const value = payload?.value
+    if (value == null || cx == null || cy == null) return <g key={index} />
+    const prev = series.normalLine[index - 1]
+    const next = series.normalLine[index + 1]
+    if ((!prev || prev.value == null) && (!next || next.value == null)) {
+      return <circle key={index} cx={cx} cy={cy} r={2.5} fill={series.color} stroke={series.color} />
+    }
+    return <g key={index} />
+  }
+}
+
 interface CursorDotsProps {
   yDomain: [number, number]
   series: ChartSeries[]
@@ -846,16 +835,17 @@ interface LatencyTooltipProps {
   active?: boolean
   label?: number
   hidden: Set<string>
+  hovered: string | null
   series: ChartSeries[]
   range: LatencyRange
 }
 
-function LatencyTooltip({ active, label, hidden, series, range }: LatencyTooltipProps) {
+function LatencyTooltip({ active, label, hidden, hovered, series, range }: LatencyTooltipProps) {
   if (!active || label == null) return null
 
   const rows: { name: string; color: string; value: number | null; isTimeout: boolean }[] = []
   for (const s of series) {
-    if (hidden.has(s.name)) continue
+    if (hovered ? s.name !== hovered : hidden.has(s.name)) continue
     const normal = lookupSeriesValue(s.normalLine, label)
     if (!normal.inGap && normal.value != null) {
       rows.push({ name: s.name, color: s.color, value: normal.value, isTimeout: false })
@@ -893,7 +883,7 @@ function LatencyTooltip({ active, label, hidden, series, range }: LatencyTooltip
       </div>
       {rows.map(r => (
         <div key={r.name} className="flex items-center gap-2">
-          <span className="flex-1 truncate font-semibold" style={{ color: r.color }}>{displayName(r.name)}</span>
+          <span className="flex-1 truncate font-semibold" style={{ color: r.color }}>{r.name}</span>
           <span
             className={cn(
               'font-mono tabular-nums',

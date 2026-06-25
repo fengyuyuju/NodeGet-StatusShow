@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { taskQuery } from '../api/methods'
+import { TCP_PING_PERIOD_MS } from '../utils/latency'
 import type { BackendPool } from '../api/pool'
 import type { TaskQueryResult } from '../types'
 
@@ -16,15 +17,11 @@ export const LATENCY_RANGES: { key: LatencyRange; label: string; ms: number }[] 
 const REFRESH_MS = 10_000
 const QUERY_TIMEOUT_MS = 20_000
 const MIN_QUERY_LIMIT = 5000
-const QUERY_LIMIT_HEADROOM = {
-  ping: 3,
-  tcp_ping: 1.5,
-} as const
+const QUERY_LIMIT_HEADROOM = 1.5
 
-export function computeQueryLimit(windowMs: number, type: 'ping' | 'tcp_ping'): number {
-  const rateMs = type === 'ping' ? 20_000 : 60_000
-  const expectedRows = Math.floor(windowMs / rateMs) + 1
-  return Math.max(MIN_QUERY_LIMIT, Math.ceil(expectedRows * QUERY_LIMIT_HEADROOM[type]))
+export function computeQueryLimit(windowMs: number): number {
+  const expectedRows = Math.floor(windowMs / TCP_PING_PERIOD_MS) + 1
+  return Math.max(MIN_QUERY_LIMIT, Math.ceil(expectedRows * QUERY_LIMIT_HEADROOM))
 }
 
 function clean(rows: TaskQueryResult[] | undefined): TaskQueryResult[] {
@@ -38,24 +35,20 @@ export function useNodeLatency(
   source: string | null,
   uuid: string | null,
   range: LatencyRange = '1h',
-  pingSourceCount = 1,
-  tcpSourceCount = 1,
+  sourceCount = 1,
 ) {
-  const [pingData, setPingData] = useState<TaskQueryResult[]>([])
-  const [tcpData, setTcpData] = useState<TaskQueryResult[]>([])
+  const [data, setData] = useState<TaskQueryResult[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    setPingData([])
-    setTcpData([])
+    setData([])
 
     if (!pool || !source || !uuid) return
     const entry = pool.entries.find(e => e.name === source)
     if (!entry) return
 
     const windowMs = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
-    const pingLimit = computeQueryLimit(windowMs, 'ping') * pingSourceCount
-    const tcpLimit = computeQueryLimit(windowMs, 'tcp_ping') * tcpSourceCount
+    const limit = computeQueryLimit(windowMs) * sourceCount
 
     let cancelled = false
     let inFlight = false
@@ -68,22 +61,16 @@ export function useNodeLatency(
       setLoading(true)
 
       try {
-        const [ping, tcp] = await Promise.allSettled([
-          taskQuery(
-            entry.client,
-            [{ uuid }, { timestamp_from_to: window }, { type: 'ping' }, { limit: pingLimit }],
-            QUERY_TIMEOUT_MS,
-          ),
-          taskQuery(
-            entry.client,
-            [{ uuid }, { timestamp_from_to: window }, { type: 'tcp_ping' }, { limit: tcpLimit }],
-            QUERY_TIMEOUT_MS,
-          ),
-        ])
+        const rows = await taskQuery(
+          entry.client,
+          [{ uuid }, { timestamp_from_to: window }, { type: 'tcp_ping' }, { limit }],
+          QUERY_TIMEOUT_MS,
+        )
 
         if (cancelled) return
-        setPingData(ping.status === 'fulfilled' ? clean(ping.value) : [])
-        setTcpData(tcp.status === 'fulfilled' ? clean(tcp.value) : [])
+        setData(clean(rows))
+      } catch {
+        if (!cancelled) setData([])
       } finally {
         inFlight = false
         if (!cancelled) setLoading(false)
@@ -96,7 +83,7 @@ export function useNodeLatency(
       cancelled = true
       clearInterval(timer)
     }
-  }, [pool, source, uuid, range, pingSourceCount, tcpSourceCount])
+  }, [pool, source, uuid, range, sourceCount])
 
-  return { pingData, tcpData, loading }
+  return { data, loading }
 }

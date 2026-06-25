@@ -22,25 +22,21 @@ export function useSourceLatency(
   pool: BackendPool | null,
   cronSource: string | null,
   range: LatencyRange,
-  pingNodeCount = 1,
-  tcpNodeCount = 1,
+  nodeCount = 1,
 ) {
-  const [pingData, setPingData] = useState<TaskQueryResult[]>([])
-  const [tcpData, setTcpData] = useState<TaskQueryResult[]>([])
+  const [data, setData] = useState<TaskQueryResult[]>([])
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<BackendError[]>([])
 
   useEffect(() => {
-    setPingData([])
-    setTcpData([])
+    setData([])
     setErrors([])
     setLoading(false)
 
     if (!pool || !cronSource) return
 
     const windowMs = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
-    const pingLimit = computeQueryLimit(windowMs, 'ping') * pingNodeCount
-    const tcpLimit = computeQueryLimit(windowMs, 'tcp_ping') * tcpNodeCount
+    const limit = computeQueryLimit(windowMs) * nodeCount
 
     let cancelled = false
     let inFlight = false
@@ -53,29 +49,18 @@ export function useSourceLatency(
       setLoading(true)
 
       try {
-        const [ping, tcp] = await Promise.all([
-          pool.fanout(
-            taskQuery,
-            [{ cron_source: cronSource }, { timestamp_from_to: window }, { type: 'ping' }, { limit: pingLimit }],
-            QUERY_TIMEOUT_MS,
-          ),
-          pool.fanout(
-            taskQuery,
-            [{ cron_source: cronSource }, { timestamp_from_to: window }, { type: 'tcp_ping' }, { limit: tcpLimit }],
-            QUERY_TIMEOUT_MS,
-          ),
-        ])
+        const result = await pool.fanout(
+          taskQuery,
+          [{ cron_source: cronSource }, { timestamp_from_to: window }, { type: 'tcp_ping' }, { limit }],
+          QUERY_TIMEOUT_MS,
+        )
 
         if (cancelled) return
 
-        setPingData(
-          ping.ok.flatMap(({ rows }) => clean(rows)).sort((a, b) => a.timestamp - b.timestamp),
-        )
-        setTcpData(
-          tcp.ok.flatMap(({ rows }) => clean(rows)).sort((a, b) => a.timestamp - b.timestamp),
-        )
-        setErrors([...ping.errors, ...tcp.errors])
+        setData(result.ok.flatMap(({ rows }) => clean(rows)).sort((a, b) => a.timestamp - b.timestamp))
+        setErrors(result.errors)
       } catch (err) {
+        // 查询失败时保留上次成功数据（last-known-good），仅追加错误，避免图表瞬时空白
         if (!cancelled) {
           setErrors([{ source: 'fanout', error: err instanceof Error ? err.message : String(err) }])
         }
@@ -91,7 +76,7 @@ export function useSourceLatency(
       cancelled = true
       clearInterval(timer)
     }
-  }, [pool, cronSource, range, pingNodeCount, tcpNodeCount])
+  }, [pool, cronSource, range, nodeCount])
 
-  return { pingData, tcpData, loading, errors }
+  return { data, loading, errors }
 }

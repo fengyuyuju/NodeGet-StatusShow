@@ -22,25 +22,21 @@ export function useNodeAllLatency(
   pool: BackendPool | null,
   uuid: string | null,
   range: LatencyRange,
-  pingSourceCount = 1,
-  tcpSourceCount = 1,
+  sourceCount = 1,
 ) {
-  const [pingData, setPingData] = useState<TaskQueryResult[]>([])
-  const [tcpData, setTcpData] = useState<TaskQueryResult[]>([])
+  const [data, setData] = useState<TaskQueryResult[]>([])
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<BackendError[]>([])
 
   useEffect(() => {
-    setPingData([])
-    setTcpData([])
+    setData([])
     setErrors([])
     setLoading(false)
 
     if (!pool || !uuid) return
 
     const windowMs = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
-    const pingLimit = computeQueryLimit(windowMs, 'ping') * pingSourceCount
-    const tcpLimit = computeQueryLimit(windowMs, 'tcp_ping') * tcpSourceCount
+    const limit = computeQueryLimit(windowMs) * sourceCount
 
     let cancelled = false
     let inFlight = false
@@ -53,28 +49,19 @@ export function useNodeAllLatency(
       setLoading(true)
 
       try {
-        const [ping, tcp] = await Promise.all([
-          pool.fanout(
-            taskQuery,
-            [{ uuid }, { timestamp_from_to: window }, { type: 'ping' }, { limit: pingLimit }],
-            QUERY_TIMEOUT_MS,
-          ),
-          pool.fanout(
-            taskQuery,
-            [{ uuid }, { timestamp_from_to: window }, { type: 'tcp_ping' }, { limit: tcpLimit }],
-            QUERY_TIMEOUT_MS,
-          ),
-        ])
+        const result = await pool.fanout(
+          taskQuery,
+          [{ uuid }, { timestamp_from_to: window }, { type: 'tcp_ping' }, { limit }],
+          QUERY_TIMEOUT_MS,
+        )
 
         if (cancelled) return
 
-        setPingData(ping.ok.flatMap(({ rows }) => clean(rows)).sort((a, b) => a.timestamp - b.timestamp))
-        setTcpData(tcp.ok.flatMap(({ rows }) => clean(rows)).sort((a, b) => a.timestamp - b.timestamp))
-        setErrors([...ping.errors, ...tcp.errors])
+        setData(result.ok.flatMap(({ rows }) => clean(rows)).sort((a, b) => a.timestamp - b.timestamp))
+        setErrors(result.errors)
       } catch (err) {
         if (!cancelled) {
-          setPingData([])
-          setTcpData([])
+          setData([])
           setErrors([{ source: 'fanout', error: err instanceof Error ? err.message : String(err) }])
         }
       } finally {
@@ -89,7 +76,7 @@ export function useNodeAllLatency(
       cancelled = true
       clearInterval(timer)
     }
-  }, [pool, uuid, range, pingSourceCount, tcpSourceCount])
+  }, [pool, uuid, range, sourceCount])
 
-  return { pingData, tcpData, loading, errors }
+  return { data, loading, errors }
 }
