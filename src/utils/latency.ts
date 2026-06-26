@@ -53,6 +53,7 @@ export interface ChartSeries {
   color: string
   points: ChartSeriesPoint[]
   normalLine: ChartSeriesPoint[]
+  gapLine: ChartSeriesPoint[]
   timeoutLine: ChartSeriesPoint[]
 }
 
@@ -62,35 +63,25 @@ interface Segment {
   b: ChartSeriesPoint
 }
 
-function buildLineData(segs: Segment[], type: 'normal' | 'timeout'): ChartSeriesPoint[] {
+function buildLineData(segs: Segment[], type: 'normal' | 'gap' | 'timeout'): ChartSeriesPoint[] {
   const out: ChartSeriesPoint[] = []
   let prevEndT: number | null = null
-  let needGap = false
+  let needBreak = false
   for (const seg of segs) {
-    // gap 段（相邻有效点间连续无采样、超过容忍阈值）：保留两端点，中间插入 null 断开
-    if (seg.type === 'gap' && type === 'normal') {
-      if (prevEndT == null) {
-        if (needGap && out.length > 0) {
-          out.push({ t: (out[out.length - 1].t + seg.a.t) / 2, value: null })
-        }
-        needGap = false
-        out.push({ t: seg.a.t, value: seg.a.value })
-      }
-      out.push({ t: (seg.a.t + seg.b.t) / 2, value: null })
-      out.push({ t: seg.b.t, value: seg.b.value })
-      prevEndT = seg.b.t
-      continue
-    }
+    // zero-length normal marker 仅服务 normalLine 查询，对 gap/timeout 线透明，避免切断连续 gap
+    const isMarker = seg.type === 'normal' && seg.a.t === seg.b.t
     if (seg.type !== type) {
-      if (prevEndT != null) needGap = true
-      prevEndT = null
+      if (!isMarker) {
+        if (prevEndT != null) needBreak = true
+        prevEndT = null
+      }
       continue
     }
     if (prevEndT == null) {
-      if (needGap && out.length > 0) {
+      if (needBreak && out.length > 0) {
         out.push({ t: (out[out.length - 1].t + seg.a.t) / 2, value: null })
       }
-      needGap = false
+      needBreak = false
       out.push({ t: seg.a.t, value: seg.a.value })
     } else if (type === 'timeout') {
       out.push({ t: prevEndT, value: null })
@@ -155,22 +146,29 @@ export function buildLatencyChart(rows: TaskQueryResult[]) {
         })
       }
 
+      let prevNormal = false
       for (let k = 0; k < validIdx.length - 1; k++) {
         const i = validIdx[k]
         const j = validIdx[k + 1]
         const sampleAdjacent = j - i === 1
         // 时间戳已对齐到分钟网格：允许缺 1 个采样，连续缺 2 个（>2 周期）判为断线
         const noDataGap = sampleAdjacent && points[j].t - points[i].t > periodMs * 2
+        const isNormal = sampleAdjacent && !noDataGap
+        // 不与任何 normal 段相邻的有效点补 zero-length normal 段，确保 tooltip/cursor 能命中真实值
+        if (!prevNormal && !isNormal) {
+          segs.push({ type: 'normal', a: points[i], b: points[i] })
+        }
         segs.push({
-          type: noDataGap ? 'gap' : sampleAdjacent ? 'normal' : 'timeout',
+          type: isNormal ? 'normal' : noDataGap ? 'gap' : 'timeout',
           a: points[i],
           b: points[j],
         })
+        prevNormal = isNormal
       }
-
-      if (validIdx.length === 1) {
-        const p = points[validIdx[0]]
-        segs.push({ type: 'normal', a: p, b: p })
+      // 尾部有效点若未被 normal 段覆盖，同样补一点
+      if (!prevNormal) {
+        const lastValid = points[validIdx[validIdx.length - 1]]
+        segs.push({ type: 'normal', a: lastValid, b: lastValid })
       }
 
       const last = validIdx[validIdx.length - 1]
@@ -192,12 +190,14 @@ export function buildLatencyChart(rows: TaskQueryResult[]) {
     }
 
     const normalLine = downsampleSeries(buildLineData(segs, 'normal'))
+    const gapLine = downsampleSeries(buildLineData(segs, 'gap'))
     const timeoutLine = downsampleSeries(buildLineData(segs, 'timeout'))
     return {
       name,
       color: generateSpectrumColor(idx, total),
       points,
       normalLine,
+      gapLine,
       timeoutLine,
     }
   })

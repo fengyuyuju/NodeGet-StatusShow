@@ -115,6 +115,7 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
     const set = new Set<number>()
     for (const s of series) {
       for (const p of s.normalLine) set.add(p.t)
+      for (const p of s.gapLine) set.add(p.t)
       for (const p of s.timeoutLine) set.add(p.t)
     }
     set.add(xDomain[0])
@@ -161,6 +162,7 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
         ...s,
         points: s.points.map(p => p.value != null && p.value > cap ? { ...p, value: cap } : p),
         normalLine: clip(s.normalLine),
+        gapLine: clip(s.gapLine),
         timeoutLine: clip(s.timeoutLine),
       }
     })
@@ -433,6 +435,19 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
               if (!isVisible) return []
               return [
                 <Line
+                  key={`${s.name}-gap`}
+                  data={s.gapLine}
+                  type="linear"
+                  dataKey="value"
+                  name={`${s.name}__gap`}
+                  stroke={s.color}
+                  strokeOpacity={0.12}
+                  strokeWidth={1}
+                  dot={false}
+                  activeDot={false}
+                  isAnimationActive={false}
+                />,
+                <Line
                   key={`${s.name}-normal`}
                   data={s.normalLine}
                   type="linear"
@@ -440,7 +455,7 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
                   name={s.name}
                   stroke={s.color}
                   strokeWidth={1}
-                  dot={isolatedDot(s)}
+                  dot={false}
                   activeDot={false}
                   isAnimationActive={false}
                 />,
@@ -713,78 +728,57 @@ function SortHeader({ label, field, current, dir, onClick, className }: SortHead
 
 /**
  * Binary search for the interpolated value of a series at a given timestamp.
- * `normalLine` is sorted by `t`. Returns the value and whether the cursor is inside a gap.
+ * The line is sorted by `t`; null points split disconnected segments.
  */
-function lookupSeriesValue(normalLine: ChartSeriesPoint[], targetT: number): { value: number | null; inGap: boolean } {
-  const n = normalLine.length
-  if (n === 0) return { value: null, inGap: false }
+function lookupSeriesValue(line: ChartSeriesPoint[], targetT: number): number | null {
+  const n = line.length
+  if (n === 0) return null
 
   // Binary search for insertion point
   let lo = 0
   let hi = n - 1
   while (lo <= hi) {
     const mid = (lo + hi) >>> 1
-    const mt = normalLine[mid].t
+    const mt = line[mid].t
     if (mt < targetT) lo = mid + 1
     else if (mt > targetT) hi = mid - 1
     else {
-      // Exact timestamp match
-      const v = normalLine[mid].value
-      if (v == null || !Number.isFinite(v)) return { value: null, inGap: true }
-      return { value: v, inGap: false }
+      const v = line[mid].value
+      if (v != null && Number.isFinite(v)) return v
+      // 同一时间戳可能并存 null 断点与 finite 值（timeoutLine 段间断点），优先取 finite
+      for (let i = mid - 1; i >= 0 && line[i].t === targetT; i--) {
+        const lv = line[i].value
+        if (lv != null && Number.isFinite(lv)) return lv
+      }
+      for (let i = mid + 1; i < n && line[i].t === targetT; i++) {
+        const rv = line[i].value
+        if (rv != null && Number.isFinite(rv)) return rv
+      }
+      return null
     }
   }
   // After binary search: hi = last index with t < targetT, lo = first index with t > targetT
 
   // Walk backward to nearest valid point
   let loIdx = hi
-  while (loIdx >= 0 && (normalLine[loIdx].value == null || !Number.isFinite(normalLine[loIdx].value!))) loIdx--
-  if (loIdx < 0) return { value: null, inGap: false }
+  while (loIdx >= 0 && (line[loIdx].value == null || !Number.isFinite(line[loIdx].value!))) loIdx--
+  if (loIdx < 0) return null
 
   // Walk forward to nearest valid point
   let hiIdx = lo
-  while (hiIdx < n && (normalLine[hiIdx].value == null || !Number.isFinite(normalLine[hiIdx].value!))) hiIdx++
+  while (hiIdx < n && (line[hiIdx].value == null || !Number.isFinite(line[hiIdx].value!))) hiIdx++
+  if (hiIdx >= n) return null
 
-  // Check for gap (null points between loIdx and hiIdx)
-  let inGap = false
+  // Null points split disconnected segments and should not be interpolated across.
   for (let i = loIdx + 1; i < hiIdx; i++) {
-    if (normalLine[i].value == null) { inGap = true; break }
-  }
-  if (inGap) return { value: null, inGap: true }
-
-  const loPt = normalLine[loIdx]
-  if (loPt.t === targetT) {
-    return { value: loPt.value!, inGap: false }
-  }
-  if (hiIdx >= n) {
-    return { value: null, inGap: false }
+    if (line[i].value == null) return null
   }
 
-  const hiPt = normalLine[hiIdx]
+  const loPt = line[loIdx]
+  const hiPt = line[hiIdx]
+  if (hiPt.t === loPt.t) return loPt.value
   const frac = (targetT - loPt.t) / (hiPt.t - loPt.t)
-  return { value: loPt.value! + (hiPt.value! - loPt.value!) * frac, inGap: false }
-}
-
-interface DotProps {
-  cx?: number
-  cy?: number
-  index?: number
-  payload?: ChartSeriesPoint
-}
-
-/** 主连线上孤立样本点（前后均无连接）的圆点渲染器：让稀疏断开的有效点可见 */
-function isolatedDot(series: ChartSeries) {
-  return (props: DotProps) => {
-    const { cx, cy, index = 0, payload } = props
-    const value = payload?.value
-    if (value == null || cx == null || cy == null) return <g key={index} />
-    const prev = series.normalLine[index - 1]
-    const next = series.normalLine[index + 1]
-    if ((!prev || prev.value == null) && (!next || next.value == null)) {
-      return <circle key={index} cx={cx} cy={cy} r={2.5} fill={series.color} stroke={series.color} />
-    }
-    return <g key={index} />
-  }
+  return loPt.value! + (hiPt.value! - loPt.value!) * frac
 }
 
 interface CursorDotsProps {
@@ -814,8 +808,8 @@ function CursorDots(props: CursorDotsProps) {
   const circles: React.ReactNode[] = []
   for (const s of series) {
     if (hovered ? s.name !== hovered : hidden.has(s.name)) continue
-    const { value, inGap } = lookupSeriesValue(s.normalLine, label)
-    if (inGap || value == null) continue
+    const value = lookupSeriesValue(s.normalLine, label)
+    if (value == null) continue
     const cy = toY(value)
     if (!Number.isFinite(cy)) continue
     circles.push(
@@ -846,15 +840,12 @@ function LatencyTooltip({ active, label, hidden, hovered, series, range }: Laten
   const rows: { name: string; color: string; value: number | null; isTimeout: boolean }[] = []
   for (const s of series) {
     if (hovered ? s.name !== hovered : hidden.has(s.name)) continue
-    const normal = lookupSeriesValue(s.normalLine, label)
-    if (!normal.inGap && normal.value != null) {
-      rows.push({ name: s.name, color: s.color, value: normal.value, isTimeout: false })
-    } else if (normal.inGap) {
-      const timeout = lookupSeriesValue(s.timeoutLine, label)
-      rows.push({ name: s.name, color: s.color, value: null, isTimeout: !timeout.inGap && timeout.value != null })
+    const normalVal = lookupSeriesValue(s.normalLine, label)
+    if (normalVal != null) {
+      rows.push({ name: s.name, color: s.color, value: normalVal, isTimeout: false })
     } else {
-      const timeout = lookupSeriesValue(s.timeoutLine, label)
-      rows.push({ name: s.name, color: s.color, value: null, isTimeout: !timeout.inGap && timeout.value != null })
+      const timeoutVal = lookupSeriesValue(s.timeoutLine, label)
+      if (timeoutVal != null) rows.push({ name: s.name, color: s.color, value: null, isTimeout: true })
     }
   }
   if (rows.length === 0) return null
