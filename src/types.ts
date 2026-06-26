@@ -11,6 +11,13 @@ export interface NodeMeta {
   priceUnit: string
   priceCycle: number
   expireTime: string
+  baseUpload: number | null
+  baseDownload: number | null
+  countMode: 'sum' | 'upload' | 'download' | 'max'
+  trafficLimitGb: number | null
+  billingMode: 'quota' | 'payg'
+  trafficPrice: number | null
+  trafficInclude: number | null
 }
 
 export interface StaticSystem {

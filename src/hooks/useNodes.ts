@@ -49,6 +49,13 @@ const META_KEYS = [
   'metadata_price_unit',
   'metadata_price_cycle',
   'metadata_expire_time',
+  'metadata_traffic_period_base_upload',
+  'metadata_traffic_period_base_download',
+  'metadata_traffic_count_mode',
+  'metadata_traffic_limit',
+  'metadata_billing_mode',
+  'metadata_traffic_price',
+  'metadata_traffic_include',
 ]
 const DYN_INTERVAL_MS = 2000
 const HISTORY_LIMIT = 60
@@ -62,6 +69,10 @@ function parseBool(v: unknown): boolean {
     return s === 'true' || s === '1' || s === 'yes'
   }
   return false
+}
+
+function parseCountMode(raw: unknown): 'sum' | 'upload' | 'download' | 'max' {
+  return raw === 'upload' || raw === 'download' || raw === 'max' || raw === 'sum' ? raw : 'sum'
 }
 
 function emptyMeta(): NodeMeta {
@@ -78,6 +89,13 @@ function emptyMeta(): NodeMeta {
     priceUnit: '$',
     priceCycle: 30,
     expireTime: '',
+    baseUpload: null,
+    baseDownload: null,
+    countMode: 'sum',
+    trafficLimitGb: null,
+    billingMode: 'quota',
+    trafficPrice: null,
+    trafficInclude: null,
   }
 }
 
@@ -91,6 +109,9 @@ function parseMeta(raw: Record<string, unknown>): NodeMeta {
   const order = Number(raw.metadata_order)
   const price = Number(raw.metadata_price)
   const cycle = Number(raw.metadata_price_cycle)
+  const limitGb = Number(raw.metadata_traffic_limit)
+  const trafficPrice = Number(raw.metadata_traffic_price)
+  const trafficInclude = Number(raw.metadata_traffic_include)
   return {
     name: raw.metadata_name ? String(raw.metadata_name) : '',
     region: raw.metadata_region ? String(raw.metadata_region) : '',
@@ -104,6 +125,19 @@ function parseMeta(raw: Record<string, unknown>): NodeMeta {
     priceUnit: raw.metadata_price_unit ? String(raw.metadata_price_unit) : '$',
     priceCycle: Number.isFinite(cycle) && cycle > 0 ? cycle : 30,
     expireTime: raw.metadata_expire_time ? String(raw.metadata_expire_time) : '',
+    baseUpload:
+      raw.metadata_traffic_period_base_upload != null
+        ? Number(raw.metadata_traffic_period_base_upload) || 0
+        : null,
+    baseDownload:
+      raw.metadata_traffic_period_base_download != null
+        ? Number(raw.metadata_traffic_period_base_download) || 0
+        : null,
+    countMode: parseCountMode(raw.metadata_traffic_count_mode),
+    trafficLimitGb: Number.isFinite(limitGb) && limitGb > 0 ? limitGb : null,
+    billingMode: raw.metadata_billing_mode === 'payg' ? 'payg' : 'quota',
+    trafficPrice: Number.isFinite(trafficPrice) && trafficPrice > 0 ? trafficPrice : null,
+    trafficInclude: Number.isFinite(trafficInclude) && trafficInclude > 0 ? trafficInclude : null,
   }
 }
 

@@ -1,4 +1,5 @@
 import type { Node, Usage } from '../types'
+import { bytes } from './format'
 
 export function deriveUsage(node: Node): Usage {
   const d = node.dynamic
@@ -19,6 +20,82 @@ export function deriveUsage(node: Node): Usage {
     uptime: d?.uptime,
     ts: d?.timestamp,
   }
+}
+
+/**
+ * 本期已用流量（展示用）：worker 账期基准 + 实时累计计数器动态求差，每 2s 随实时数据刷新。
+ * base 取自 worker 写入的 metadata_traffic_period_base_upload/_download（账期起点快照）；
+ * 无 base（非 quota 或 worker 未跑）时回退实时累计。upload=上行(transmitted)，download=下行(received)。
+ * 仅为展示、不计费；worker 仍是计费权威。
+ */
+export function trafficUsed(node: Node): { upload: number; download: number } {
+  const liveUpload = node.dynamic?.total_transmitted ?? 0
+  const liveDownload = node.dynamic?.total_received ?? 0
+  const baseUpload = node.meta?.baseUpload
+  const baseDownload = node.meta?.baseDownload
+  return {
+    upload: baseUpload != null ? Math.max(0, liveUpload - baseUpload) : liveUpload,
+    download: baseDownload != null ? Math.max(0, liveDownload - baseDownload) : liveDownload,
+  }
+}
+
+const GB = 1073741824
+
+/** 按节点计量口径聚合分方向用量（与 worker 的 aggregateUsed 口径一致）。 */
+function aggregateByMode(
+  upload: number,
+  download: number,
+  mode: Node['meta']['countMode'],
+): number {
+  switch (mode) {
+    case 'upload':
+      return upload
+    case 'download':
+      return download
+    case 'max':
+      return Math.max(upload, download)
+    case 'sum':
+    default:
+      return upload + download
+  }
+}
+
+/**
+ * 流量进度条数据（展示用），返回 {percent, hint, text?}：
+ * - quota：percent = 计量口径聚合用量 / 限额；不返回 text（组件显示默认百分比）。
+ * - payg：percent = 已用 / 免费额度（无免费额度则 0）；text = `$` + 超出免费额度部分 × 单价。
+ * 无流量配置返回 null。
+ */
+export function trafficBar(
+  node: Node,
+): { percent: number; text?: string; hint: string } | null {
+  const meta = node.meta
+  if (!meta) return null
+  const { upload, download } = trafficUsed(node)
+  const used = aggregateByMode(upload, download, meta.countMode)
+
+  if (meta.billingMode === 'payg') {
+    const price = meta.trafficPrice ?? 0
+    const include = meta.trafficInclude ?? 0
+    const usedGb = used / GB
+    const cost = Math.max(0, usedGb - include) * price
+    const percent = include > 0 ? Math.min((usedGb / include) * 100, 100) : 0
+    return {
+      percent,
+      text: `$${cost.toFixed(2)}`,
+      hint: include > 0 ? `${bytes(used)} / 含 ${bytes(include * GB)}` : bytes(used),
+    }
+  }
+
+  const limitGb = meta.trafficLimitGb
+  if (limitGb && limitGb > 0) {
+    const limit = limitGb * GB
+    return {
+      percent: (used / limit) * 100,
+      hint: `${bytes(used)} / ${bytes(limit)}`,
+    }
+  }
+  return null
 }
 
 export function displayName(node: Node) {

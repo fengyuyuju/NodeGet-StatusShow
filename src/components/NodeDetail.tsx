@@ -14,7 +14,7 @@ import { Card } from './ui/card'
 import { Flag } from './Flag'
 import { StatusDot } from './StatusDot'
 import { bytes, pct, relativeAge, uptime } from '../utils/format'
-import { deriveUsage, displayName, distroLogo, osLabel, virtLabel } from '../utils/derive'
+import { deriveUsage, displayName, distroLogo, osLabel, trafficUsed, virtLabel } from '../utils/derive'
 import { cycleProgress, hasCost, remainingDays, remainingValue } from '../utils/cost'
 import { cn, strokeColor } from '../utils/cn'
 import { useNodeLatency, type LatencyRange } from '../hooks/useNodeLatency'
@@ -90,6 +90,7 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
 
   const u = deriveUsage(node)
   const d = node.dynamic
+  const traffic = trafficUsed(node)
   const s = node.static?.system
   const cpu = node.static?.cpu
   const tags = node.meta?.tags ?? []
@@ -234,8 +235,8 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
           </Section>
 
           <Section title="网络与负载">
-            <KV k="累计接收" v={d?.total_received != null ? bytes(d.total_received) : null} />
-            <KV k="累计发送" v={d?.total_transmitted != null ? bytes(d.total_transmitted) : null} />
+            <KV k="已用接收" v={bytes(traffic.download)} />
+            <KV k="已用发送" v={bytes(traffic.upload)} />
             <KV k="磁盘读" v={d?.read_speed != null ? `${bytes(d.read_speed)}/s` : null} />
             <KV k="磁盘写" v={d?.write_speed != null ? `${bytes(d.write_speed)}/s` : null} />
             <KV k="进程数" v={d?.process_count} />

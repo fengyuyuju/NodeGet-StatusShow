@@ -5,13 +5,15 @@ import { Progress } from './ui/progress'
 import { Flag } from './Flag'
 import { StatusDot } from './StatusDot'
 import { bytes, pct, relativeAge, uptime } from '../utils/format'
-import { cpuLabel, deriveUsage, displayName, osLabel, virtLabel } from '../utils/derive'
+import { cpuLabel, deriveUsage, displayName, osLabel, trafficBar, trafficUsed, virtLabel } from '../utils/derive'
 import { cn, loadColor } from '../utils/cn'
 import type { Node } from '../types'
 import type { ReactNode } from 'react'
 
 export function NodeCard({ node }: { node: Node }) {
   const u = deriveUsage(node)
+  const traffic = trafficUsed(node)
+  const bar = trafficBar(node)
   const tags = Array.isArray(node.meta?.tags) ? node.meta.tags : []
   const os = osLabel(node)
   const virt = virtLabel(node)
@@ -51,6 +53,12 @@ export function NodeCard({ node }: { node: Node }) {
                 value={u.disk}
                 sub={u.diskTotal ? `${bytes(u.diskUsed)} / ${bytes(u.diskTotal)}` : null}
             />
+            <Metric
+                label="流量"
+                value={bar?.percent}
+                valueText={bar?.text}
+                sub={bar?.hint ?? `↓${bytes(traffic.download)} ↑${bytes(traffic.upload)}`}
+            />
           </div>
 
           <div className="pt-2.5 border-t border-dashed font-mono text-xs text-muted-foreground space-y-1.5">
@@ -59,8 +67,8 @@ export function NodeCard({ node }: { node: Node }) {
               <span>{bytes(u.netOut || 0)}/s</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1">{bytes(node.dynamic?.total_received || 0)}<ArrowDown className="h-3 w-3" /></span>
-              <span className="inline-flex items-center gap-1"><ArrowUp className="h-3 w-3" />{bytes(node.dynamic?.total_transmitted || 0)}</span>
+              <span className="inline-flex items-center gap-1">{bytes(traffic.download)}<ArrowDown className="h-3 w-3" /></span>
+              <span className="inline-flex items-center gap-1"><ArrowUp className="h-3 w-3" />{bytes(traffic.upload)}</span>
             </div>
             <div className="flex items-center gap-3">
               <Stat icon={Clock}>{uptime(u.uptime)}</Stat>
@@ -96,17 +104,19 @@ function Metric({
                   value,
                   sub,
                   subTitle,
+                  valueText,
                 }: {
   label: string
   value: number | undefined
   sub?: string | null
   subTitle?: string
+  valueText?: string
 }) {
   return (
       <div className="min-w-0">
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">{label}</span>
-          <span className="font-mono">{pct(value)}</span>
+          <span className="font-mono">{valueText ?? pct(value)}</span>
         </div>
         <Progress value={value} indicatorClassName={loadColor(value)} className="mt-1 h-1.5" />
         {sub && (

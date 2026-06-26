@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Flag } from './Flag'
 import { StatusDot } from './StatusDot'
 import { bytes, pct, relativeAge } from '../utils/format'
-import { deriveUsage, displayName } from '../utils/derive'
+import { deriveUsage, displayName, trafficBar, trafficUsed } from '../utils/derive'
 import { cn, loadColor } from '../utils/cn'
 import { remainingDays } from '../utils/cost'
 import type { Node, Sort, SortDir } from '../types'
@@ -18,13 +18,14 @@ interface Props {
   onSort: (key: Sort) => void
 }
 
-const columns: { key: Sort; label: string }[] = [
+const columns: { key?: Sort; label: string }[] = [
   { key: 'name', label: '名称' },
   { key: 'cpu', label: 'CPU' },
   { key: 'mem', label: '内存' },
   { key: 'disk', label: '磁盘' },
+  { label: '流量' },
+  { key: 'netIn', label: '用量' },
   { key: 'netOut', label: '网速' },
-  { key: 'netIn', label: '流量' },
   { key: 'expire', label: '到期' },
 ]
 
@@ -35,26 +36,31 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
         <TableHeader>
           <TableRow>
             <TableHead className="w-8" />
-            {columns.map(col => (
-              <TableHead
-                key={col.key}
-                className={cn('cursor-pointer select-none', sort === col.key && 'text-foreground')}
-                onClick={() => onSort(col.key)}
-              >
-                <span className="inline-flex items-center gap-1">
-                  {col.label}
-                  {sort === col.key && (
-                    sortDir === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />
-                  )}
-                </span>
-              </TableHead>
-            ))}
+            {columns.map(col => {
+              const key = col.key
+              return (
+                <TableHead
+                  key={key ?? col.label}
+                  className={key ? cn('cursor-pointer select-none', sort === key && 'text-foreground') : undefined}
+                  onClick={key ? () => onSort(key) : undefined}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {col.label}
+                    {key && sort === key && (
+                      sortDir === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />
+                    )}
+                  </span>
+                </TableHead>
+              )
+            })}
             <TableHead>更新</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {nodes.map(n => {
             const u = deriveUsage(n)
+            const t = trafficUsed(n)
+            const bar = trafficBar(n)
             return (
               <TableRow
                 key={n.uuid}
@@ -85,13 +91,24 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
                     hint={u.diskTotal ? `${bytes(u.diskUsed)} / ${bytes(u.diskTotal)}` : null}
                   />
                 </TableCell>
+                <TableCell>
+                  {bar ? (
+                    <CellBar
+                      value={bar.percent}
+                      text={bar.text}
+                      hint={bar.hint}
+                    />
+                  ) : (
+                    <span className="font-mono text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap">
+                  <div className="flex items-center gap-1"><ArrowUp className="h-3 w-3 text-emerald-500 shrink-0" />{bytes(t.upload)}</div>
+                  <div className="flex items-center gap-1"><ArrowDown className="h-3 w-3 text-blue-500 shrink-0" />{bytes(t.download)}</div>
+                </TableCell>
                 <TableCell className="font-mono text-xs leading-tight whitespace-nowrap">
                   <div className="flex items-center gap-1"><ArrowUp className="h-3 w-3 text-emerald-500 shrink-0" />{bytes(u.netOut || 0)}/s</div>
                   <div className="flex items-center gap-1"><ArrowDown className="h-3 w-3 text-blue-500 shrink-0" />{bytes(u.netIn || 0)}/s</div>
-                </TableCell>
-                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap">
-                  <div className="flex items-center gap-1"><ArrowUp className="h-3 w-3 text-emerald-500 shrink-0" />{bytes(n.dynamic?.total_transmitted || 0)}</div>
-                  <div className="flex items-center gap-1"><ArrowDown className="h-3 w-3 text-blue-500 shrink-0" />{bytes(n.dynamic?.total_received || 0)}</div>
                 </TableCell>
                 <TableCell className="font-mono text-xs whitespace-nowrap">
                   <ExpireDays meta={n.meta} />
@@ -108,7 +125,7 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
   )
 }
 
-function CellBar({ value, hint }: { value: number | undefined; hint?: string | null }) {
+function CellBar({ value, hint, text }: { value: number | undefined; hint?: string | null; text?: string }) {
   return (
     <div className="relative min-w-[110px]" title={hint || ''}>
       <Progress value={value} indicatorClassName={loadColor(value)} className="h-1.5" />
@@ -116,7 +133,7 @@ function CellBar({ value, hint }: { value: number | undefined; hint?: string | n
         className="absolute inset-0 flex items-center justify-center font-mono text-xs font-medium"
         style={{ textShadow: '-1px -1px 0 hsl(var(--card)), 1px -1px 0 hsl(var(--card)), -1px 1px 0 hsl(var(--card)), 1px 1px 0 hsl(var(--card))' }}
       >
-        {pct(value)}
+        {text ?? pct(value)}
       </span>
     </div>
   )
