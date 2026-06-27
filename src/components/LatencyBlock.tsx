@@ -31,6 +31,7 @@ export interface LatencyBlockProps {
   onRangeChange: (r: LatencyRange) => void
   chartClass?: string
   statsClass?: string
+  cardClassName?: string
   titleSlot?: ReactNode
   sourceLabel?: string
 }
@@ -81,7 +82,7 @@ function downsampleBars(bars: Array<number | null>, maxBars: number): BarChunk[]
   return result
 }
 
-export function LatencyBlock({ title, rows, loading, range, onRangeChange, chartClass, statsClass, titleSlot, sourceLabel = '来源' }: LatencyBlockProps) {
+export function LatencyBlock({ title, rows, loading, range, onRangeChange, chartClass, statsClass, cardClassName, titleSlot, sourceLabel = '来源' }: LatencyBlockProps) {
   const { series } = useMemo(() => buildLatencyChart(rows), [rows])
   const baseStats = useMemo(() => computeLatencyStats(rows), [rows])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
@@ -388,8 +389,8 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
             </button>
           ))}
         </div>
-        <div className="w-px h-4 bg-border mx-1" aria-hidden="true" />
-        <div className="bg-muted p-1 rounded-md">
+        <div className="hidden md:block w-px h-4 bg-border mx-1" aria-hidden="true" />
+        <div className="hidden md:block bg-muted p-1 rounded-md">
           <button
             onClick={() => setMaximized(v => !v)}
             className="inline-flex items-center justify-center px-2 py-1 rounded-sm transition-colors text-muted-foreground hover:text-foreground"
@@ -510,12 +511,14 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
     </div>
   )
 
-  const tableBg = maximized ? 'bg-background' : 'bg-card'
+  const isFlat = !!cardClassName && cardClassName.includes('latency-flat')
+  const tableBg = maximized ? 'bg-background' : (isFlat ? 'md:bg-card' : 'bg-card')
+  const stickyBg = maximized ? 'bg-background' : 'bg-card'
 
   const statsTable = (
     <div className={cn('mt-3 border-t pt-3 pb-1.5 overflow-x-auto', maximized ? 'flex-1 min-h-0 overflow-y-auto' : statsClass)}>
       <div className={cn('flex items-center gap-1 pl-0 pr-2 pb-1 text-[11px] text-muted-foreground whitespace-nowrap min-w-[530px]', tableBg)}>
-        <span className={cn('sticky left-0 shrink-0 pl-2 pr-3 -mr-1 z-10', tableBg)} style={{ width: nameColWidth }}>
+        <span className={cn('sticky left-0 shrink-0 pl-2 pr-3 -mr-1 z-10', stickyBg)} style={{ width: nameColWidth }}>
           {sourceLabel}
         </span>
         <span className="flex-1 max-w-[450px] min-w-[120px] ml-auto">
@@ -584,6 +587,7 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
               hidden={hidden.has(s.name)}
               onToggle={() => toggle(s.name)}
               tableBg={tableBg}
+              stickyBg={stickyBg}
               nameColWidth={nameColWidth}
             />
           ))}
@@ -610,7 +614,7 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
   }
 
   return (
-    <Card className="p-3 sm:p-5">
+    <Card className={cn('p-3 sm:p-5', cardClassName)}>
       {toolbarRow}
       {chartArea}
       {statsTable}
@@ -668,6 +672,7 @@ function LatencyStatsRow({
   hidden,
   onToggle,
   tableBg,
+  stickyBg,
   nameColWidth,
 }: {
   stat: LatencyStats
@@ -675,6 +680,7 @@ function LatencyStatsRow({
   hidden: boolean
   onToggle: () => void
   tableBg: string
+  stickyBg: string
   nameColWidth: number
 }) {
   const { name, color, p50, p95, p99, jitter, lossRate } = stat
@@ -686,11 +692,11 @@ function LatencyStatsRow({
       onClick={onToggle}
       data-source={name}
       className={cn(
-        'flex items-center gap-1 pl-0 pr-2 py-1 text-xs cursor-pointer select-none group hover:bg-muted min-w-[530px]',
+        'flex items-center gap-1 pl-0 pr-2 py-1 text-xs cursor-pointer select-none group md:hover:bg-muted min-w-[530px]',
         tableBg,
       )}
     >
-      <span className={cn('sticky left-0 shrink-0 flex items-center pl-2 pr-3 -mr-1 z-10', tableBg, 'group-hover:bg-muted')} style={{ width: nameColWidth }}>
+      <span className={cn('sticky left-0 shrink-0 flex items-center pl-2 pr-3 -mr-1 z-10', stickyBg, 'md:group-hover:bg-muted')} style={{ width: nameColWidth }}>
         <span className={cn('truncate font-semibold', dimCls)} style={{ color }}>{name}</span>
       </span>
       <span className={cn('flex-1 max-w-[450px] min-w-[120px] ml-auto', dimCls)}>

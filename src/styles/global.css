@@ -90,6 +90,22 @@
   mask-image: radial-gradient(ellipse at top, black 40%, transparent 90%);
 }
 
+/* 移动端：背景改为纯色，去掉渐变/圆点装饰（桌面端维持原样） */
+@media (max-width: 767px) {
+  .bg-soft,
+  .dark .bg-soft {
+    background-color: hsl(var(--background));
+    background-image: none;
+    background-size: auto;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+  /* 网络延迟页：纯色改用卡片色，与透明卡片融为一体 */
+  body.route-latency .bg-soft {
+    background-color: hsl(var(--card));
+  }
+}
+
 .card-soft {
   background-color: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(10px);
@@ -103,4 +119,16 @@
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* 网络延迟页移动端扁平化：card-soft 处于 @layer 之外、优先级高于 utilities，
+   故用更高特异性在 <md 时清掉背景与阴影，桌面态维持原样 */
+@media (max-width: 767px) {
+  .latency-flat.card-soft,
+  .dark .latency-flat.card-soft {
+    background-color: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }

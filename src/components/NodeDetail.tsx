@@ -109,6 +109,7 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
       ref={scrollRef}
       className="fixed inset-0 z-50 bg-background overflow-y-auto animate-in fade-in duration-150"
     >
+      <div className="fixed inset-0 -z-10 bg-soft pointer-events-none" aria-hidden />
       <div
         ref={headerRef}
         className={`sticky top-0 z-10 transition-[background-color,backdrop-filter,border-color] duration-200 ${

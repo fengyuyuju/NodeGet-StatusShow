@@ -72,6 +72,12 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  // 标记当前处于网络延迟路由，供全局背景做移动端针对性覆盖
+  useEffect(() => {
+    document.body.classList.add('route-latency')
+    return () => document.body.classList.remove('route-latency')
+  }, [])
+
   const { sources, loading: sourcesLoading } = useLatencySources(pool)
 
   const nodeList = useMemo(
@@ -350,6 +356,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
             <LatencyBlock
               title={currentTitle}
               titleSlot={mobileDropdown}
+              cardClassName="latency-flat border-0 md:border rounded-none md:rounded-xl -mx-4 sm:-mx-6 md:mx-0"
               sourceLabel="来源"
               rows={sourceRows}
               loading={loading}
@@ -360,6 +367,7 @@ export function LatencySummary({ nodes, pool, onBack }: Props) {
             <LatencyBlock
               title={currentTitle}
               titleSlot={mobileDropdown}
+              cardClassName="latency-flat border-0 md:border rounded-none md:rounded-xl -mx-4 sm:-mx-6 md:mx-0"
               sourceLabel="任务"
               rows={nodeRows}
               loading={loading}
