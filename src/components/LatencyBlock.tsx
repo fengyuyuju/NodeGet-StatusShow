@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowDown, ArrowUp, Eye, EyeOff, Maximize2, Minimize2, Scissors } from 'lucide-react'
 import {
@@ -262,6 +262,29 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
     return { yDomain, yTicks }
   }, [displaySeries, hidden, hovered])
 
+  // 刻度固定按 3 位数字宽度（取最宽的 "888"）预留，宽度不随数据抖动：
+  // LineChart 左外边距 = 8（= 列表名字列 pl-2）、YAxis width = 3 位文本宽 + 8，
+  // 3 位刻度左缘即落在 8px，恰好与列表名字左缘对齐（tickSize/tickMargin 常量被消去）。
+  const chartRef = useRef<HTMLDivElement>(null)
+  const [yAxisWidth, setYAxisWidth] = useState(44)
+
+  useLayoutEffect(() => {
+    const host = chartRef.current
+    if (!host) return
+    const SVGNS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(SVGNS, 'svg')
+    const probe = document.createElementNS(SVGNS, 'text')
+    probe.setAttribute('font-size', '11')
+    probe.textContent = '888'
+    svg.appendChild(probe)
+    svg.setAttribute('aria-hidden', 'true')
+    svg.style.cssText = 'position:absolute;visibility:hidden;width:0;height:0;pointer-events:none'
+    host.appendChild(svg)
+    const next = Math.ceil(probe.getBBox().width) + 8
+    svg.remove()
+    setYAxisWidth(prev => (prev === next ? prev : next))
+  }, [])
+
   const rangeRef = useRef<HTMLDivElement>(null)
   const [indicator, setIndicator] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
 
@@ -384,14 +407,14 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
   )
 
   const chartArea = (
-    <div className={cn('relative', maximized ? 'h-[33.33vh] shrink-0' : chartClass || 'h-60')}>
+    <div ref={chartRef} className={cn('relative', maximized ? 'h-[33.33vh] shrink-0' : chartClass || 'h-60')}>
       {empty ? (
         <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
           {loading ? '加载中…' : `暂无 ${emptyLabel} 数据`}
         </div>
       ) : (
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
+          <LineChart data={chartData} margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
             <XAxis
               dataKey="t"
               type="number"
@@ -414,7 +437,7 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
               tickFormatter={tickFormat(yTicks)}
               tick={{ fontSize: 11 }}
               stroke="hsl(var(--muted-foreground))"
-              width={44}
+              width={yAxisWidth}
               domain={yDomain}
               ticks={yTicks}
               allowDataOverflow
