@@ -26,7 +26,7 @@ const columns: { key?: Sort; label: string }[] = [
   { label: '流量' },
   { key: 'netIn', label: '用量' },
   { key: 'netOut', label: '网速' },
-  { key: 'expire', label: '到期' },
+  { key: 'expire', label: '剩余' },
 ]
 
 export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
@@ -41,7 +41,7 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
               return (
                 <TableHead
                   key={key ?? col.label}
-                  className={key ? cn('cursor-pointer select-none', sort === key && 'text-foreground') : undefined}
+                  className={cn(key && 'cursor-pointer select-none', col.key !== 'name' && 'text-center', sort === key && 'text-foreground')}
                   onClick={key ? () => onSort(key) : undefined}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -53,7 +53,7 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
                 </TableHead>
               )
             })}
-            <TableHead>更新</TableHead>
+            <TableHead className="text-center">更新</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -102,18 +102,18 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
                     <span className="font-mono text-xs text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap">
-                  <div className="flex items-center gap-1"><ArrowUp className="h-3 w-3 text-emerald-500 shrink-0" />{bytes(t.upload)}</div>
-                  <div className="flex items-center gap-1"><ArrowDown className="h-3 w-3 text-blue-500 shrink-0" />{bytes(t.download)}</div>
+                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap text-right">
+                  <div className="flex items-center gap-1 justify-end">{intBytes(t.upload)}<ArrowUp className="h-3 w-3 shrink-0" /></div>
+                  <div className="flex items-center gap-1 justify-end">{intBytes(t.download)}<ArrowDown className="h-3 w-3 shrink-0" /></div>
                 </TableCell>
-                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap">
-                  <div className="flex items-center gap-1"><ArrowUp className="h-3 w-3 text-emerald-500 shrink-0" />{bytes(u.netOut || 0)}/s</div>
-                  <div className="flex items-center gap-1"><ArrowDown className="h-3 w-3 text-blue-500 shrink-0" />{bytes(u.netIn || 0)}/s</div>
+                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap text-right">
+                  <div className="flex items-center gap-1 justify-end">{intBytes(u.netOut || 0)}/s<ArrowUp className="h-3 w-3 shrink-0" /></div>
+                  <div className="flex items-center gap-1 justify-end">{intBytes(u.netIn || 0)}/s<ArrowDown className="h-3 w-3 shrink-0" /></div>
                 </TableCell>
-                <TableCell className="font-mono text-xs whitespace-nowrap">
+                <TableCell className="font-mono text-xs whitespace-nowrap text-right">
                   <ExpireDays meta={n.meta} />
                 </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+                <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap text-right">
                   {relativeAge(u.ts)}
                 </TableCell>
               </TableRow>
@@ -137,6 +137,15 @@ function CellBar({ value, hint, text }: { value: number | undefined; hint?: stri
       </span>
     </div>
   )
+}
+
+function intBytes(n: number) {
+  if (n <= 0) return '0 B'
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
+  let i = 0
+  let v = n
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
+  return `${Math.round(v)} ${units[i]}`
 }
 
 function ExpireDays({ meta }: { meta: Node['meta'] }) {

@@ -53,22 +53,27 @@ export function NodeCard({ node }: { node: Node }) {
                 value={u.disk}
                 sub={u.diskTotal ? `${bytes(u.diskUsed)} / ${bytes(u.diskTotal)}` : null}
             />
-            <Metric
-                label="流量"
-                value={bar?.percent}
-                valueText={bar?.text}
-                sub={bar?.hint ?? `↓${bytes(traffic.download)} ↑${bytes(traffic.upload)}`}
-            />
+            <div>
+              <Metric
+                  label="流量"
+                  value={bar?.percent}
+                  valueText={bar?.text}
+              />
+              <div className="font-mono text-[11px] text-muted-foreground flex justify-between mt-1">
+                <span className="truncate">{bar?.hint}</span>
+                <span className="inline-flex items-center gap-1 shrink-0">
+                  <ArrowUp className="h-3 w-3" />{intBytes(traffic.upload)}
+                  {' '}
+                  <ArrowDown className="h-3 w-3" />{intBytes(traffic.download)}
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="pt-2.5 border-t border-dashed font-mono text-xs text-muted-foreground space-y-1.5">
             <div className="flex items-center justify-between">
-              <span>{bytes(u.netIn || 0)}/s</span>
-              <span>{bytes(u.netOut || 0)}/s</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1">{bytes(traffic.download)}<ArrowDown className="h-3 w-3" /></span>
-              <span className="inline-flex items-center gap-1"><ArrowUp className="h-3 w-3" />{bytes(traffic.upload)}</span>
+              <span className="inline-flex items-center gap-1"><ArrowUp className="h-3 w-3" />{intBytes(u.netOut || 0)}/s</span>
+              <span className="inline-flex items-center gap-1"><ArrowDown className="h-3 w-3" />{intBytes(u.netIn || 0)}/s</span>
             </div>
             <div className="flex items-center gap-3">
               <Stat icon={Clock}>{uptime(u.uptime)}</Stat>
@@ -129,4 +134,13 @@ function Metric({
         )}
       </div>
   )
+}
+
+function intBytes(n: number) {
+  if (n <= 0) return '0 B'
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
+  let i = 0
+  let v = n
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
+  return `${Math.round(v)} ${units[i]}`
 }
