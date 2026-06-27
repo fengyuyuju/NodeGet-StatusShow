@@ -1,12 +1,12 @@
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Card } from './ui/card'
-import { Progress } from './ui/progress'
+import { OverlayProgress } from './ui/overlay-progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
 import { Flag } from './Flag'
 import { StatusDot } from './StatusDot'
 import { bytes, pct, relativeAge } from '../utils/format'
 import { deriveUsage, displayName, trafficBar, trafficUsed } from '../utils/derive'
-import { cn, loadColor } from '../utils/cn'
+import { cn } from '../utils/cn'
 import { remainingDays } from '../utils/cost'
 import type { Node, Sort, SortDir } from '../types'
 
@@ -128,13 +128,7 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
 function CellBar({ value, hint, text }: { value: number | undefined; hint?: string | null; text?: string }) {
   return (
     <div className="relative min-w-[110px]" title={hint || ''}>
-      <Progress value={value} indicatorClassName={loadColor(value)} className="h-1.5" />
-      <span
-        className="absolute inset-0 flex items-center justify-center font-mono text-xs font-medium"
-        style={{ textShadow: '-1px -1px 0 hsl(var(--card)), 1px -1px 0 hsl(var(--card)), -1px 1px 0 hsl(var(--card)), 1px 1px 0 hsl(var(--card))' }}
-      >
-        {text ?? pct(value)}
-      </span>
+      <OverlayProgress value={value} text={text ?? pct(value)} />
     </div>
   )
 }

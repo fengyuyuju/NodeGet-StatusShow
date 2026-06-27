@@ -1,12 +1,12 @@
 import { ArrowDown, ArrowUp, Clock, type LucideIcon } from 'lucide-react'
 import { Badge } from './ui/badge'
 import { Card } from './ui/card'
-import { Progress } from './ui/progress'
+import { OverlayProgress } from './ui/overlay-progress'
 import { Flag } from './Flag'
 import { StatusDot } from './StatusDot'
 import { bytes, pct, relativeAge, uptime } from '../utils/format'
-import { cpuLabel, deriveUsage, displayName, osLabel, trafficBar, trafficUsed, virtLabel } from '../utils/derive'
-import { cn, loadColor } from '../utils/cn'
+import { cpuLabel, deriveUsage, distroLogo, displayName, trafficBar, trafficUsed } from '../utils/derive'
+import { cn } from '../utils/cn'
 import type { Node } from '../types'
 import type { ReactNode } from 'react'
 
@@ -15,9 +15,8 @@ export function NodeCard({ node }: { node: Node }) {
   const traffic = trafficUsed(node)
   const bar = trafficBar(node)
   const tags = Array.isArray(node.meta?.tags) ? node.meta.tags : []
-  const os = osLabel(node)
-  const virt = virtLabel(node)
   const cpu = cpuLabel(node)
+  const logo = distroLogo(node)
 
   return (
       <a href={`#${encodeURIComponent(node.uuid)}`} className="block">
@@ -33,15 +32,12 @@ export function NodeCard({ node }: { node: Node }) {
             <span className="font-semibold flex-1 min-w-0 truncate" title={displayName(node)}>
             {displayName(node)}
           </span>
+            {logo && (
+              <img src={logo} alt="" className="w-5 h-5 shrink-0 object-contain" loading="lazy" />
+            )}
           </div>
 
-          {(os || virt) && (
-              <div className="font-mono text-xs text-muted-foreground truncate">
-                {[os, virt].filter(Boolean).join(' · ')}
-              </div>
-          )}
-
-          <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-3.5">
             <Metric label="CPU" value={u.cpu} sub={cpu || null} subTitle={cpu || undefined} />
             <Metric
                 label="内存"
@@ -58,12 +54,13 @@ export function NodeCard({ node }: { node: Node }) {
                   label="流量"
                   value={bar?.percent}
                   valueText={bar?.text}
+                  sub={bar?.hint}
               />
               <div className="font-mono text-[11px] text-muted-foreground flex justify-between mt-1">
-                <span className="truncate">{bar?.hint}</span>
-                <span className="inline-flex items-center gap-1 shrink-0">
+                <span className="inline-flex items-center gap-1">
                   <ArrowUp className="h-3 w-3" />{bytes(traffic.upload)}
-                  {' '}
+                </span>
+                <span className="inline-flex items-center gap-1">
                   <ArrowDown className="h-3 w-3" />{bytes(traffic.download)}
                 </span>
               </div>
@@ -119,19 +116,17 @@ function Metric({
 }) {
   return (
       <div className="min-w-0">
-        <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">{label}</span>
-          <span className="font-mono">{valueText ?? pct(value)}</span>
-        </div>
-        <Progress value={value} indicatorClassName={loadColor(value)} className="mt-1 h-1.5" />
-        {sub && (
-            <div
-                className="font-mono text-[11px] text-muted-foreground mt-1 truncate"
-                title={subTitle}
-            >
+        <div className="flex justify-between gap-2 text-xs">
+          <span className="text-muted-foreground shrink-0">{label}</span>
+          {sub && (
+            <span className="font-mono text-muted-foreground truncate min-w-0 text-right" title={subTitle}>
               {sub}
-            </div>
-        )}
+            </span>
+          )}
+        </div>
+        <div className="mt-1.5">
+          <OverlayProgress value={value} text={valueText ?? pct(value)} />
+        </div>
       </div>
   )
 }

@@ -120,8 +120,20 @@ export function cpuLabel(node: Node) {
   const brand = cpu?.brand || cpu?.per_core?.[0]?.brand || ''
   const parts: string[] = []
   if (cores) parts.push(`${cores} 核`)
-  if (brand) parts.push(brand)
+  if (brand) parts.push(shortenCpuBrand(brand))
   return parts.join(' · ')
+}
+
+/** 精简 OS 上报的 CPU 品牌串：去掉商标/频率/“Processor”等噪声，只留品牌与型号。 */
+function shortenCpuBrand(brand: string): string {
+  return brand
+    .replace(/\(R\)/g, '')
+    .replace(/\(TM\)/g, '')
+    .replace(/\s*CPU\s*@\s*[\d.]+\s*GHz.*$/i, '')
+    .replace(/\s*\d+-Core\s+Processor.*$/i, '')
+    .replace(/\s+Processor\b.*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 export function osLabel(node: Node) {
