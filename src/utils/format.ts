@@ -2,14 +2,14 @@ const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 
 /**
  * 统一 1024 进制字节格式化（全项目唯一来源）。
- * TB 量级取整会丢失可观精度，故保留 2 位小数；其余单位取整。
+ * TB 量级取整会丢失可观精度，故最多保留 2 位小数（去尾零）；其余单位取整。
  */
 export function bytes(n?: number | null) {
   if (!n || n <= 0) return '0 B'
   let i = 0
   let v = n
   while (v >= 1024 && i < BYTE_UNITS.length - 1) { v /= 1024; i++ }
-  return `${i === 4 ? v.toFixed(2) : Math.round(v)} ${BYTE_UNITS[i]}`
+  return `${i === 4 ? Number(v.toFixed(2)) : Math.round(v)} ${BYTE_UNITS[i]}`
 }
 
 export function pct(v?: number | null) {
