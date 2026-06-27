@@ -15,7 +15,7 @@ import { Progress } from './ui/progress'
 import { Flag } from './Flag'
 import { StatusDot } from './StatusDot'
 import { bytes, pct, relativeAge, uptime } from '../utils/format'
-import { deriveUsage, displayName, distroLogo, osLabel, trafficBar, trafficUsed, virtLabel } from '../utils/derive'
+import { deriveUsage, displayName, distroLogo, osLabel, trafficBar, trafficCost, trafficUsed, virtLabel } from '../utils/derive'
 import { cycleProgress, hasCost, remainingDays, remainingValue } from '../utils/cost'
 import { cn, loadColor, strokeColor } from '../utils/cn'
 import { useNodeLatency, type LatencyRange } from '../hooks/useNodeLatency'
@@ -254,8 +254,8 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
 
           {hasCost(node.meta) && (
             <>
-              <CostSection meta={node.meta} />
               <UsageSection node={node} />
+              <CostSection meta={node.meta} />
             </>
           )}
         </div>
@@ -427,15 +427,6 @@ function CostSection({ meta }: { meta: NodeMeta }) {
   )
 }
 
-function intBytes(n: number) {
-  if (n <= 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let i = 0
-  let v = n
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
-  return `${Math.round(v)} ${units[i]}`
-}
-
 function UsageSection({ node }: { node: Node }) {
   const traffic = trafficUsed(node)
   const bar = trafficBar(node)
@@ -452,20 +443,19 @@ function UsageSection({ node }: { node: Node }) {
     }
   })()
 
-  let quotaLabel: string
-  if (meta?.billingMode === 'payg') {
-    quotaLabel = meta.trafficInclude ? `含 ${meta.trafficInclude} GB` : '按量付费'
-  } else {
-    quotaLabel = meta?.trafficLimitGb ? `${meta.trafficLimitGb} GB` : '未设置'
-  }
+  const quotaLabel = meta?.trafficLimitGb ? `${meta.trafficLimitGb} GB` : '未设置'
 
   return (
     <Section title="用量">
-      <KV k="上行" v={intBytes(traffic.upload)} />
-      <KV k="下行" v={intBytes(traffic.download)} />
-      <KV k="总量" v={intBytes(total)} />
-      <KV k="额度" v={quotaLabel} />
-      {bar && (
+      <KV k="上行" v={bytes(traffic.upload)} />
+      <KV k="下行" v={bytes(traffic.download)} />
+      <KV k="总量" v={bytes(total)} />
+      {meta?.billingMode === 'payg' ? (
+        <KV k="费用" v={`$${trafficCost(node).toFixed(2)}`} />
+      ) : (
+        <KV k="额度" v={quotaLabel} />
+      )}
+      {bar && meta?.billingMode !== 'payg' && (
         <div className="mt-3">
           <Progress value={bar.percent} indicatorClassName={loadColor(bar.percent)} className="h-1.5" />
         </div>

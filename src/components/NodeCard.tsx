@@ -62,9 +62,9 @@ export function NodeCard({ node }: { node: Node }) {
               <div className="font-mono text-[11px] text-muted-foreground flex justify-between mt-1">
                 <span className="truncate">{bar?.hint}</span>
                 <span className="inline-flex items-center gap-1 shrink-0">
-                  <ArrowUp className="h-3 w-3" />{intBytes(traffic.upload)}
+                  <ArrowUp className="h-3 w-3" />{bytes(traffic.upload)}
                   {' '}
-                  <ArrowDown className="h-3 w-3" />{intBytes(traffic.download)}
+                  <ArrowDown className="h-3 w-3" />{bytes(traffic.download)}
                 </span>
               </div>
             </div>
@@ -72,8 +72,8 @@ export function NodeCard({ node }: { node: Node }) {
 
           <div className="pt-2.5 border-t border-dashed font-mono text-xs text-muted-foreground space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1"><ArrowUp className="h-3 w-3" />{intBytes(u.netOut || 0)}/s</span>
-              <span className="inline-flex items-center gap-1"><ArrowDown className="h-3 w-3" />{intBytes(u.netIn || 0)}/s</span>
+              <span className="inline-flex items-center gap-1"><ArrowUp className="h-3 w-3" />{bytes(u.netOut || 0)}/s</span>
+              <span className="inline-flex items-center gap-1"><ArrowDown className="h-3 w-3" />{bytes(u.netIn || 0)}/s</span>
             </div>
             <div className="flex items-center gap-3">
               <Stat icon={Clock}>{uptime(u.uptime)}</Stat>
@@ -134,13 +134,4 @@ function Metric({
         )}
       </div>
   )
-}
-
-function intBytes(n: number) {
-  if (n <= 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let i = 0
-  let v = n
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
-  return `${Math.round(v)} ${units[i]}`
 }

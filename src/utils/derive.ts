@@ -61,6 +61,20 @@ function aggregateByMode(
 }
 
 /**
+ * 流量费用（payg 展示用）：超出免费额度的用量 × 单价（美元）；非 payg 返回 0。
+ * 与 trafficBar 同口径，仅为展示、不计费（worker 仍是计费权威）。
+ */
+export function trafficCost(node: Node): number {
+  const meta = node.meta
+  if (!meta || meta.billingMode !== 'payg') return 0
+  const { upload, download } = trafficUsed(node)
+  const used = aggregateByMode(upload, download, meta.countMode)
+  const price = meta.trafficPrice ?? 0
+  const include = meta.trafficInclude ?? 0
+  return Math.max(0, used / GB - include) * price
+}
+
+/**
  * 流量进度条数据（展示用），返回 {percent, hint, text?}：
  * - quota：percent = 计量口径聚合用量 / 限额；不返回 text（组件显示默认百分比）。
  * - payg：percent = 已用 / 免费额度（无免费额度则 0）；text = `$` + 超出免费额度部分 × 单价。
@@ -75,14 +89,12 @@ export function trafficBar(
   const used = aggregateByMode(upload, download, meta.countMode)
 
   if (meta.billingMode === 'payg') {
-    const price = meta.trafficPrice ?? 0
     const include = meta.trafficInclude ?? 0
     const usedGb = used / GB
-    const cost = Math.max(0, usedGb - include) * price
     const percent = include > 0 ? Math.min((usedGb / include) * 100, 100) : 0
     return {
       percent,
-      text: `$${cost.toFixed(2)}`,
+      text: `$${trafficCost(node).toFixed(2)}`,
       hint: include > 0 ? `${bytes(used)} / 含 ${bytes(include * GB)}` : bytes(used),
     }
   }

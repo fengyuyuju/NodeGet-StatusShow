@@ -103,12 +103,12 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
                   )}
                 </TableCell>
                 <TableCell className="font-mono text-xs leading-tight whitespace-nowrap text-right min-w-[95px]">
-                  <div className="flex items-center gap-1 justify-end">{intBytes(t.upload)}<ArrowUp className="h-3 w-3 shrink-0" /></div>
-                  <div className="flex items-center gap-1 justify-end">{intBytes(t.download)}<ArrowDown className="h-3 w-3 shrink-0" /></div>
+                  <div className="flex items-center gap-1 justify-end">{bytes(t.upload)}<ArrowUp className="h-3 w-3 shrink-0" /></div>
+                  <div className="flex items-center gap-1 justify-end">{bytes(t.download)}<ArrowDown className="h-3 w-3 shrink-0" /></div>
                 </TableCell>
                 <TableCell className="font-mono text-xs leading-tight whitespace-nowrap text-right min-w-[110px]">
-                  <div className="flex items-center gap-1 justify-end">{intBytes(u.netOut || 0)}/s<ArrowUp className="h-3 w-3 shrink-0" /></div>
-                  <div className="flex items-center gap-1 justify-end">{intBytes(u.netIn || 0)}/s<ArrowDown className="h-3 w-3 shrink-0" /></div>
+                  <div className="flex items-center gap-1 justify-end">{bytes(u.netOut || 0)}/s<ArrowUp className="h-3 w-3 shrink-0" /></div>
+                  <div className="flex items-center gap-1 justify-end">{bytes(u.netIn || 0)}/s<ArrowDown className="h-3 w-3 shrink-0" /></div>
                 </TableCell>
                 <TableCell className="font-mono text-xs whitespace-nowrap text-right min-w-[95px]">
                   <ExpireDays meta={n.meta} />
@@ -137,15 +137,6 @@ function CellBar({ value, hint, text }: { value: number | undefined; hint?: stri
       </span>
     </div>
   )
-}
-
-function intBytes(n: number) {
-  if (n <= 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let i = 0
-  let v = n
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
-  return `${Math.round(v)} ${units[i]}`
 }
 
 function ExpireDays({ meta }: { meta: Node['meta'] }) {

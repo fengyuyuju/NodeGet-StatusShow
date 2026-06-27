@@ -1,7 +1,12 @@
-import prettyBytes from 'pretty-bytes'
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 
+/** 统一 1024 进制字节格式化（与历史 intBytes 同口径，全项目唯一来源）。 */
 export function bytes(n?: number | null) {
-  return n && n > 0 ? prettyBytes(n) : '0 B'
+  if (!n || n <= 0) return '0 B'
+  let i = 0
+  let v = n
+  while (v >= 1024 && i < BYTE_UNITS.length - 1) { v /= 1024; i++ }
+  return `${Math.round(v)} ${BYTE_UNITS[i]}`
 }
 
 export function pct(v?: number | null) {
