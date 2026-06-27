@@ -18,15 +18,15 @@ interface Props {
   onSort: (key: Sort) => void
 }
 
-const columns: { key?: Sort; label: string }[] = [
+const columns: { key?: Sort; label: string; minWidth?: string }[] = [
   { key: 'name', label: '名称' },
   { key: 'cpu', label: 'CPU' },
   { key: 'mem', label: '内存' },
   { key: 'disk', label: '磁盘' },
   { label: '流量' },
-  { key: 'netIn', label: '用量' },
-  { key: 'netOut', label: '网速' },
-  { key: 'expire', label: '剩余' },
+  { key: 'netIn', label: '用量', minWidth: 'min-w-[95px]' },
+  { key: 'netOut', label: '网速', minWidth: 'min-w-[110px]' },
+  { key: 'expire', label: '剩余', minWidth: 'min-w-[95px]' },
 ]
 
 export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
@@ -41,7 +41,7 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
               return (
                 <TableHead
                   key={key ?? col.label}
-                  className={cn(key && 'cursor-pointer select-none', col.key !== 'name' && 'text-center', sort === key && 'text-foreground')}
+                  className={cn(col.minWidth, key && 'cursor-pointer select-none', col.key !== 'name' && 'text-center', sort === key && 'text-foreground')}
                   onClick={key ? () => onSort(key) : undefined}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -53,7 +53,7 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
                 </TableHead>
               )
             })}
-            <TableHead className="text-center">更新</TableHead>
+            <TableHead className="text-center min-w-[65px]">更新</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -102,18 +102,18 @@ export function NodeTable({ nodes, onOpen, sort, sortDir, onSort }: Props) {
                     <span className="font-mono text-xs text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap text-right">
+                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap text-right min-w-[95px]">
                   <div className="flex items-center gap-1 justify-end">{intBytes(t.upload)}<ArrowUp className="h-3 w-3 shrink-0" /></div>
                   <div className="flex items-center gap-1 justify-end">{intBytes(t.download)}<ArrowDown className="h-3 w-3 shrink-0" /></div>
                 </TableCell>
-                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap text-right">
+                <TableCell className="font-mono text-xs leading-tight whitespace-nowrap text-right min-w-[110px]">
                   <div className="flex items-center gap-1 justify-end">{intBytes(u.netOut || 0)}/s<ArrowUp className="h-3 w-3 shrink-0" /></div>
                   <div className="flex items-center gap-1 justify-end">{intBytes(u.netIn || 0)}/s<ArrowDown className="h-3 w-3 shrink-0" /></div>
                 </TableCell>
-                <TableCell className="font-mono text-xs whitespace-nowrap text-right">
+                <TableCell className="font-mono text-xs whitespace-nowrap text-right min-w-[95px]">
                   <ExpireDays meta={n.meta} />
                 </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap text-right">
+                <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap text-right min-w-[65px]">
                   {relativeAge(u.ts)}
                 </TableCell>
               </TableRow>
