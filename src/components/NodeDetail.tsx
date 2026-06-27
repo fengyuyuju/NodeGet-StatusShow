@@ -11,12 +11,13 @@ import {
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
+import { Progress } from './ui/progress'
 import { Flag } from './Flag'
 import { StatusDot } from './StatusDot'
 import { bytes, pct, relativeAge, uptime } from '../utils/format'
-import { deriveUsage, displayName, distroLogo, osLabel, trafficUsed, virtLabel } from '../utils/derive'
+import { deriveUsage, displayName, distroLogo, osLabel, trafficBar, trafficUsed, virtLabel } from '../utils/derive'
 import { cycleProgress, hasCost, remainingDays, remainingValue } from '../utils/cost'
-import { cn, strokeColor } from '../utils/cn'
+import { cn, loadColor, strokeColor } from '../utils/cn'
 import { useNodeLatency, type LatencyRange } from '../hooks/useNodeLatency'
 import { useLatencySources } from '../hooks/useLatencySources'
 import { LatencyBlock } from './LatencyBlock'
@@ -90,7 +91,6 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
 
   const u = deriveUsage(node)
   const d = node.dynamic
-  const traffic = trafficUsed(node)
   const s = node.static?.system
   const cpu = node.static?.cpu
   const tags = node.meta?.tags ?? []
@@ -235,8 +235,8 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
           </Section>
 
           <Section title="网络与负载">
-            <KV k="已用接收" v={bytes(traffic.download)} />
-            <KV k="已用发送" v={bytes(traffic.upload)} />
+            <KV k="累计接收" v={d?.total_received != null ? bytes(d.total_received) : null} />
+            <KV k="累计发送" v={d?.total_transmitted != null ? bytes(d.total_transmitted) : null} />
             <KV k="磁盘读" v={d?.read_speed != null ? `${bytes(d.read_speed)}/s` : null} />
             <KV k="磁盘写" v={d?.write_speed != null ? `${bytes(d.write_speed)}/s` : null} />
             <KV k="进程数" v={d?.process_count} />
@@ -252,7 +252,12 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
             <KV k="数据更新" v={relativeAge(d?.timestamp)} />
           </Section>
 
-          {hasCost(node.meta) && <CostSection meta={node.meta} />}
+          {hasCost(node.meta) && (
+            <>
+              <CostSection meta={node.meta} />
+              <UsageSection node={node} />
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -416,6 +421,53 @@ function CostSection({ meta }: { meta: NodeMeta }) {
             className={cn('h-full rounded-full transition-all', barColor)}
             style={{ width: `${progress}%` }}
           />
+        </div>
+      )}
+    </Section>
+  )
+}
+
+function intBytes(n: number) {
+  if (n <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let i = 0
+  let v = n
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
+  return `${Math.round(v)} ${units[i]}`
+}
+
+function UsageSection({ node }: { node: Node }) {
+  const traffic = trafficUsed(node)
+  const bar = trafficBar(node)
+  const meta = node.meta
+
+  const total = (() => {
+    const { upload, download } = traffic
+    switch (meta?.countMode) {
+      case 'upload': return upload
+      case 'download': return download
+      case 'max': return Math.max(upload, download)
+      case 'sum':
+      default: return upload + download
+    }
+  })()
+
+  let quotaLabel: string
+  if (meta?.billingMode === 'payg') {
+    quotaLabel = meta.trafficInclude ? `含 ${meta.trafficInclude} GB` : '按量付费'
+  } else {
+    quotaLabel = meta?.trafficLimitGb ? `${meta.trafficLimitGb} GB` : '未设置'
+  }
+
+  return (
+    <Section title="用量">
+      <KV k="上行" v={intBytes(traffic.upload)} />
+      <KV k="下行" v={intBytes(traffic.download)} />
+      <KV k="总量" v={intBytes(total)} />
+      <KV k="额度" v={quotaLabel} />
+      {bar && (
+        <div className="mt-3">
+          <Progress value={bar.percent} indicatorClassName={loadColor(bar.percent)} className="h-1.5" />
         </div>
       )}
     </Section>

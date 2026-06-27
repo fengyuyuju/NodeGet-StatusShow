@@ -141,7 +141,7 @@ function CellBar({ value, hint, text }: { value: number | undefined; hint?: stri
 
 function intBytes(n: number) {
   if (n <= 0) return '0 B'
-  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let i = 0
   let v = n
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
