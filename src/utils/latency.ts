@@ -151,7 +151,7 @@ export function buildLatencyChart(rows: TaskQueryResult[]) {
         const i = validIdx[k]
         const j = validIdx[k + 1]
         const sampleAdjacent = j - i === 1
-        // 相邻有效点跨采样周期（中间存在漏采槽）即判 gap；gap 由 gapLine 淡线连接呈现，无需再为视觉保底连线
+        // 相邻有效点跨采样周期（中间存在漏采槽）即判 gap；gap 由 gapLine 连接呈现，无需再为视觉保底连线
         const noDataGap = sampleAdjacent && points[j].t - points[i].t > periodMs
         const isNormal = sampleAdjacent && !noDataGap
         // 不与任何 normal 段相邻的有效点补 zero-length normal 段，确保 tooltip/cursor 能命中真实值

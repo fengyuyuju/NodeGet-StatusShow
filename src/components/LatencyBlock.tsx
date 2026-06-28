@@ -465,7 +465,6 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
                   dataKey="value"
                   name={`${s.name}__gap`}
                   stroke={s.color}
-                  strokeOpacity={0.12}
                   strokeWidth={1}
                   dot={false}
                   activeDot={false}
