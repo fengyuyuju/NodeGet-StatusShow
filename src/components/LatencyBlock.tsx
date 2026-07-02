@@ -916,7 +916,7 @@ function LatencyStatsRow({
         {p99 != null ? ms(p99) : '—'}
       </span>
       <span className={cn('w-10 text-right tabular-nums font-mono', dimCls)}>
-        {jitter != null ? ms(jitter) : '—'}
+        {jitter != null ? jitter.toFixed(1) : '—'}
       </span>
       <span
         className={cn(
