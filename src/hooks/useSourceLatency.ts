@@ -4,7 +4,7 @@ import type { BackendPool } from '../api/pool'
 import type { TaskQueryResult } from '../types'
 import { LATENCY_RANGES, computeQueryLimit, type LatencyRange } from './useNodeLatency'
 
-const REFRESH_MS = 10_000
+const REFRESH_MS = 300_000
 const QUERY_TIMEOUT_MS = 20_000
 
 interface BackendError {

@@ -111,22 +111,38 @@ function pickLatestPerSlot(sorted: ChartSeriesPoint[]): ChartSeriesPoint[] {
   return out
 }
 
-export function buildLatencyChart(rows: TaskQueryResult[]) {
-  const names = seriesNames(rows)
-  const total = names.length
+/**
+ * 将原始记录按来源归并为分钟采样槽点，并应用统一去重语义。
+ *
+ * 图表（buildLatencyChart）与统计（computeLatencyStats）共用此入口，
+ * 确保重试/执行漂移产生的同槽多条记录只计一次，避免统计口径漂移。
+ *
+ * @param rows  原始任务查询结果（每条含 timestamp、success、tcp_ping）。
+ * @param names 已排序的来源名称，决定输出 Map 的遍历顺序。
+ * @returns     每来源对应的 per-slot 去重点序列（按 t 升序，每分钟最多一点）。
+ */
+function buildPointsBySource(rows: TaskQueryResult[], names: string[]): Map<string, ChartSeriesPoint[]> {
   const bySource = new Map<string, ChartSeriesPoint[]>()
   for (const n of names) bySource.set(n, [])
 
   for (const r of rows) {
     const name = r.cron_source || '未知'
-    bySource.get(name)?.push({
-      t: normalizeTs(r.timestamp),
-      value: pickValue(r),
-    })
+    bySource.get(name)?.push({ t: normalizeTs(r.timestamp), value: pickValue(r) })
   }
 
+  for (const [name, points] of bySource) {
+    bySource.set(name, pickLatestPerSlot(points.sort((a, b) => a.t - b.t)))
+  }
+  return bySource
+}
+
+export function buildLatencyChart(rows: TaskQueryResult[], threshold: number = MAX_CHART_POINTS) {
+  const names = seriesNames(rows)
+  const total = names.length
+  const bySource = buildPointsBySource(rows, names)
+
   const series: ChartSeries[] = names.map((name, idx) => {
-    const points = pickLatestPerSlot((bySource.get(name) ?? []).sort((a, b) => a.t - b.t))
+    const points = bySource.get(name) ?? []
     const periodMs = TCP_PING_PERIOD_MS
 
     const validIdx: number[] = []
@@ -189,9 +205,9 @@ export function buildLatencyChart(rows: TaskQueryResult[]) {
       })
     }
 
-    const normalLine = downsampleSeries(buildLineData(segs, 'normal'))
-    const gapLine = downsampleSeries(buildLineData(segs, 'gap'))
-    const timeoutLine = downsampleSeries(buildLineData(segs, 'timeout'))
+    const normalLine = downsampleSeries(buildLineData(segs, 'normal'), threshold)
+    const gapLine = downsampleSeries(buildLineData(segs, 'gap'), threshold)
+    const timeoutLine = downsampleSeries(buildLineData(segs, 'timeout'), threshold)
     return {
       name,
       color: generateSpectrumColor(idx, total),
@@ -228,15 +244,72 @@ export function downsampleSeries(data: ChartSeriesPoint[], threshold: number = M
   const out: ChartSeriesPoint[] = []
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i]
-    const target = Math.max(2, Math.round(threshold * seg.length / totalLen))
-    const stride = seg.length / target
-    const sampled: ChartSeriesPoint[] = [seg.points[0]]
-    for (let j = 1; j < seg.length - 1; j++) {
-      if (Math.round(j / stride) !== Math.round((j - 1) / stride)) {
-        sampled.push(seg.points[j])
+    const budget = Math.max(2, Math.round(threshold * seg.length / totalLen))
+    let sampled: ChartSeriesPoint[]
+
+    if (seg.length <= budget) {
+      sampled = seg.points
+    } else if (budget < 3) {
+      // 短段配额被压到 2 时，若段内 ≥3 点，补取中间最高峰，避免首尾直连线吞掉尖峰
+      sampled = [seg.points[0], seg.points[seg.length - 1]]
+      if (seg.length >= 3) {
+        let peakIdx = 1
+        for (let j = 2; j < seg.length - 1; j++) {
+          if ((seg.points[j].value ?? -Infinity) > (seg.points[peakIdx].value ?? -Infinity)) peakIdx = j
+        }
+        sampled.splice(1, 0, seg.points[peakIdx])
       }
+    } else {
+      sampled = [seg.points[0]]
+      // LTTB：首尾各占 1 点，中间分 budget-2 桶，每桶选与"上一选中点 + 下一桶均值"构成最大三角形的点。
+      // 高压缩比下仍保留整体形态与尖峰，避免 min-max 每桶仅出峰谷导致的长直线失真
+      const bucketCount = budget - 2
+      const bucketSize = (seg.length - 2) / bucketCount
+      let prevIdx = 0
+
+      for (let bucket = 0; bucket < bucketCount; bucket++) {
+        const start = 1 + Math.floor(bucket * bucketSize)
+        const end = Math.min(seg.length - 1, 1 + Math.floor((bucket + 1) * bucketSize))
+        const avgStart = 1 + Math.floor((bucket + 1) * bucketSize)
+        const avgEnd = Math.min(seg.length - 1, 1 + Math.floor((bucket + 2) * bucketSize))
+
+        let avgT = seg.points[seg.length - 1].t
+        let avgValue = seg.points[seg.length - 1].value ?? 0
+        if (avgStart < avgEnd) {
+          let sumT = 0
+          let sumValue = 0
+          for (let j = avgStart; j < avgEnd; j++) {
+            sumT += seg.points[j].t
+            sumValue += seg.points[j].value ?? 0
+          }
+          const count = avgEnd - avgStart
+          avgT = sumT / count
+          avgValue = sumValue / count
+        }
+
+        const prev = seg.points[prevIdx]
+        const prevValue = prev.value ?? 0
+        let pickIdx = start
+        let maxArea = -1
+        for (let j = start; j < end; j++) {
+          const pt = seg.points[j]
+          const area = Math.abs(
+            (prev.t - avgT) * ((pt.value ?? 0) - prevValue) -
+            (prev.t - pt.t) * (avgValue - prevValue),
+          )
+          if (area > maxArea) {
+            maxArea = area
+            pickIdx = j
+          }
+        }
+
+        sampled.push(seg.points[pickIdx])
+        prevIdx = pickIdx
+      }
+
+      sampled.push(seg.points[seg.length - 1])
     }
-    if (seg.length > 1) sampled.push(seg.points[seg.length - 1])
+
     out.push(...sampled)
     if (i < segments.length - 1) {
       const mid = (sampled[sampled.length - 1].t + segments[i + 1].points[0].t) / 2
@@ -293,6 +366,7 @@ export function computeLatencyStats(rows: TaskQueryResult[]): LatencyStats[] {
     }
 
     const color = generateSpectrumColor(i, total)
+    // 重试即丢包证据：按原始探测次数计，失败探测 / 总探测，不按分钟槽去重
     const lossRate = list.length ? ((list.length - vals.length) / list.length) * 100 : 0
     if (!vals.length) return { name, color, avg: null, p50: null, p95: null, p99: null, jitter: null, lossRate }
 

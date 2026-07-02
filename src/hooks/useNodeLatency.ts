@@ -14,7 +14,7 @@ export const LATENCY_RANGES: { key: LatencyRange; label: string; ms: number }[] 
   { key: '7d', label: '7D', ms: 7 * 24 * 60 * 60 * 1000 },
 ]
 
-const REFRESH_MS = 10_000
+const REFRESH_MS = 300_000
 const QUERY_TIMEOUT_MS = 20_000
 const MIN_QUERY_LIMIT = 5000
 const QUERY_LIMIT_HEADROOM = 1.5

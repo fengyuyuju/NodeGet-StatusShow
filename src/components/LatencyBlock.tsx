@@ -2,10 +2,10 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { createPortal } from 'react-dom'
 import { ArrowDown, ArrowUp, Eye, EyeOff, Maximize2, Minimize2, Scissors } from 'lucide-react'
 import {
+  Customized,
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
@@ -15,6 +15,7 @@ import {
   buildLatencyChart,
   computePeakClipCap,
   computeLatencyStats,
+  TCP_PING_PERIOD_MS,
   TIMEOUT_COLOR,
   type ChartSeries,
   type ChartSeriesPoint,
@@ -39,7 +40,8 @@ export interface LatencyBlockProps {
 type SortField = 'p50' | 'p95' | 'p99' | 'jitter' | 'lossRate'
 type SortDir = 'asc' | 'desc'
 
-const ms = (v: number) => v.toFixed(1)
+// 截断小数到整数，不四舍五入（保留个位数即可）
+const ms = (v: number) => String(Math.floor(v))
 
 function tickFormat(ticks: number[]): (v: number) => string {
   for (let i = 1; i < ticks.length; i++) {
@@ -59,6 +61,17 @@ const QUALITY_SEGMENTS = [
 ] as const
 const CANVAS_H = 16
 const HEIGHT_CAP = 400
+
+// 自适应点数预算：按屏幕实际像素决定点数，让图表展现最多可分辨细节
+const POINTS_PER_PIXEL = 1 / 2.5     // 每 2.5px 一个点：更密即亚像素噪声
+const BUDGET_STEP = 50               // 量化步长，抑制 resize 高频重建
+const FALLBACK_BUDGET = 400          // 初始 0 宽回退（首次 paint 前的默认）
+
+function computeLatencyPointBudget(widthPx: number, _sourceCount: number): number {
+  if (widthPx <= 0) return FALLBACK_BUDGET
+  // 仅按视觉密度（像素）约束，不再按源数压低——多源时由 LTTB 各自保形
+  return Math.max(2, Math.floor(Math.floor(widthPx * POINTS_PER_PIXEL) / BUDGET_STEP) * BUDGET_STEP)
+}
 
 interface BarChunk { avg: number | null; loss: number }
 
@@ -83,22 +96,70 @@ function downsampleBars(bars: Array<number | null>, maxBars: number): BarChunk[]
 }
 
 export function LatencyBlock({ title, rows, loading, range, onRangeChange, chartClass, statsClass, cardClassName, titleSlot, sourceLabel = '来源' }: LatencyBlockProps) {
-  const { series } = useMemo(() => buildLatencyChart(rows), [rows])
+  const [maximized, setMaximized] = useState(false)
+  const chartRef = useRef<HTMLDivElement>(null)
+  // 直接存预算而非宽度：resize 时只在量化预算变化时才触发重渲染，避免逐像素抖动
+  const [chartPointBudget, setChartPointBudget] = useState(FALLBACK_BUDGET)
+
+  const sourceCount = useMemo(() => new Set(rows.map(r => r.cron_source || '未知')).size, [rows])
+
+  // 最大化切换时 chartArea 移入/移出 portal，DOM 节点重挂载，需重绑 observer
+  useLayoutEffect(() => {
+    const host = chartRef.current
+    if (!host) return
+    const apply = (w: number) => {
+      const width = Math.floor(w)
+      // 过滤 0 宽：portal 切换瞬间会闪现 0，保留下沉到 computeLatencyPointBudget 的 FALLBACK
+      if (width <= 0) return
+      const next = computeLatencyPointBudget(width, sourceCount)
+      setChartPointBudget(prev => prev === next ? prev : next)
+    }
+    apply(host.getBoundingClientRect().width)
+    const ro = new ResizeObserver(entries => apply(entries[0]?.contentRect.width ?? 0))
+    ro.observe(host)
+    return () => ro.disconnect()
+  }, [maximized, sourceCount])
+
+  const { series } = useMemo(() => buildLatencyChart(rows, chartPointBudget), [rows, chartPointBudget])
   const baseStats = useMemo(() => computeLatencyStats(rows), [rows])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   const [peakClipping, setPeakClipping] = useState(true)
   const [hovered, setHovered] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('p50')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
-  const [maximized, setMaximized] = useState(false)
   const empty = series.every(s => s.points.length === 0)
   const emptyLabel = '延迟'
+
+  // plotBox 由 <Customized> 探针从 Recharts 内部读取绘图区几何，供鼠标像素↔t 反算
+  const [plotBox, setPlotBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
+
+  // 用 ref 持有几何相等判断的 setter，保证 probe 组件拿到的回调 identity 永远稳定，
+  // 避免 inline 函数每次渲染变新 identity 导致 Customized remount → setState → 无限循环
+  const plotBoxRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null)
+  const handleOffset = useCallback((o: { left: number; top: number; width: number; height: number }) => {
+    const prev = plotBoxRef.current
+    if (prev && prev.left === o.left && prev.top === o.top && prev.width === o.width && prev.height === o.height) return
+    plotBoxRef.current = o
+    setPlotBox(o)
+  }, [])
+
+  // tooltip overlay 走 ref 直接操作 DOM：hoverX 不进 React state，避免触发 Recharts 重渲染。
+  // updateOverlayRef 每次渲染重新赋值（捕获最新 displaySeries/hidden/hovered/plotBox），rAF 读它总是最新闭包
+  const overlayRootRef = useRef<HTMLDivElement>(null)
+  const cursorGroupRef = useRef<SVGGElement>(null)
+  const circlesRef = useRef<SVGGElement>(null)
+  const tooltipBoxRef = useRef<HTMLDivElement>(null)
+  const timeLabelRef = useRef<HTMLDivElement>(null)
+  const valuesRef = useRef<HTMLDivElement>(null)
+  const lastClientXRef = useRef<number | null>(null)
+  const lastTRef = useRef<number | null>(null)
+  const updateOverlayRef = useRef<(() => void) | null>(null)
 
   const xDomain = useMemo((): [number, number] => {
     const ms = LATENCY_RANGES.find(r => r.key === range)?.ms ?? LATENCY_RANGES[0].ms
     const now = Date.now()
     return [now - ms, now]
-  }, [range, series])
+  }, [range, rows])
 
   useEffect(() => {
     if (!maximized) return
@@ -112,17 +173,12 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
     return () => document.removeEventListener('keydown', onKey, true)
   }, [maximized])
 
-  const chartData = useMemo(() => {
-    const set = new Set<number>()
-    for (const s of series) {
-      for (const p of s.normalLine) set.add(p.t)
-      for (const p of s.gapLine) set.add(p.t)
-      for (const p of s.timeoutLine) set.add(p.t)
-    }
-    set.add(xDomain[0])
-    set.add(xDomain[1])
-    return [...set].sort((a, b) => a - b).map(t => ({ t, _ref: 0 }))
-  }, [series, xDomain])
+  // chartData 仅作 X 轴骨架（透明 _ref 线占位），恒为 2 点。
+  // tooltip 定位改由外层鼠标像素反算 t 完成，与 Recharts activeIndex 解耦，不再随数据量膨胀
+  const chartData = useMemo(() => [
+    { t: xDomain[0], _ref: 0 },
+    { t: xDomain[1], _ref: 0 },
+  ], [xDomain])
 
   const xTicks = useMemo(() => {
     if (chartData.length === 0) return []
@@ -263,10 +319,133 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
     return { yDomain, yTicks }
   }, [displaySeries, hidden, hovered])
 
+  // overlay 更新闭包：每次渲染重新赋值，捕获最新的 displaySeries/hidden/hovered/plotBox/domains。
+  // rAF 与可见性同步 effect 都通过 updateOverlayRef.current 调用，永远拿到最新闭包，无 stale 风险
+  updateOverlayRef.current = () => {
+    const clientX = lastClientXRef.current
+    const pb = plotBox
+    const root = overlayRootRef.current
+    const cursorG = cursorGroupRef.current
+    const tipBox = tooltipBoxRef.current
+    if (clientX == null || !pb || !chartRef.current || !root || !cursorG || !tipBox || !timeLabelRef.current || !valuesRef.current || !circlesRef.current) return
+
+    const rect = chartRef.current.getBoundingClientRect()
+    const hoverX = clientX - rect.left
+    const clampedX = Math.max(pb.left, Math.min(hoverX, pb.left + pb.width))
+    const rawT = pb.width > 0 ? xDomain[0] + ((clampedX - pb.left) / pb.width) * (xDomain[1] - xDomain[0]) : xDomain[0]
+    const t = Math.floor(rawT / TCP_PING_PERIOD_MS) * TCP_PING_PERIOD_MS
+    // cursor 锁定到 snap 后数据点的像素，避免在两点间水平飘移脱离折线顶点
+    const x = pb.width > 0 ? pb.left + ((t - xDomain[0]) / (xDomain[1] - xDomain[0])) * pb.width : pb.left
+    const flip = x > pb.left + pb.width / 2
+
+    root.style.display = 'block'
+    cursorG.style.display = 'block'
+    cursorG.style.transform = `translateX(${x}px)`
+    tipBox.style.left = `${x + (flip ? -16 : 16)}px`
+    tipBox.style.transform = flip ? 'translateX(-100%)' : 'none'
+
+    // 仅在数据点切换时重算内容（lookupSeriesValue 较重）；同点内移动只改位置
+    if (lastTRef.current === t) return
+    lastTRef.current = t
+
+    const yMin = yDomain[0]
+    const yRange = (yDomain[1] - yMin) || 1
+    const toY = (v: number) => pb.top + pb.height * (1 - (v - yMin) / yRange)
+
+    // hovered 时只展示该源；否则展示所有源（含被隐藏的），无值显 -，超时显红色"超时"
+    const visibleSeries = hovered ? displaySeries.filter(s => s.name === hovered) : displaySeries
+    const rows: { name: string; color: string; value: number | null; isTimeout: boolean; noData: boolean; cy: number | null }[] = []
+    for (const s of visibleSeries) {
+      const normalVal = lookupSeriesValue(s.normalLine, t)
+      if (normalVal != null) {
+        const cy = toY(normalVal)
+        rows.push({ name: s.name, color: s.color, value: normalVal, isTimeout: false, noData: false, cy: Number.isFinite(cy) ? cy : null })
+        continue
+      }
+      const timeoutVal = lookupSeriesValue(s.timeoutLine, t)
+      if (timeoutVal != null) {
+        rows.push({ name: s.name, color: s.color, value: null, isTimeout: true, noData: false, cy: null })
+      } else {
+        rows.push({ name: s.name, color: s.color, value: null, isTimeout: false, noData: true, cy: null })
+      }
+    }
+
+    const circlesEl = circlesRef.current
+    const valuesEl = valuesRef.current
+    circlesEl.textContent = ''
+    valuesEl.textContent = ''
+    tipBox.style.display = 'none'
+
+    // 空数据区（所有源都无值）：隐藏竖线，避免无意义的孤立 cursor
+    cursorG.style.display = rows.length === 0 ? 'none' : 'block'
+    if (rows.length === 0) return
+
+    tipBox.style.display = 'block'
+    timeLabelRef.current.textContent = range === '7d'
+      ? `${new Date(t).getMonth() + 1}-${String(new Date(t).getDate()).padStart(2, '0')} ${new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}`
+      : new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+
+    // 有值升序 → 超时 → 无数据
+    const sorted = [...rows].sort((a, b) => {
+      const ra = a.noData ? 2 : a.isTimeout ? 1 : 0
+      const rb = b.noData ? 2 : b.isTimeout ? 1 : 0
+      if (ra !== rb) return ra - rb
+      if (ra === 0) return (a.value ?? 0) - (b.value ?? 0)
+      return 0
+    })
+    for (const r of sorted) {
+      if (r.cy != null) {
+        const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+        c.setAttribute('cx', '0')
+        c.setAttribute('cy', String(r.cy))
+        c.setAttribute('r', '5')
+        c.setAttribute('fill', r.color)
+        c.setAttribute('stroke', '#fff')
+        c.setAttribute('stroke-width', '1')
+        circlesEl.appendChild(c)
+      }
+      const nameSpan = document.createElement('span')
+      nameSpan.className = 'truncate font-semibold'
+      nameSpan.style.color = r.color
+      nameSpan.textContent = r.name
+      const valSpan = document.createElement('span')
+      valSpan.className = cn('font-mono tabular-nums text-right', r.noData && 'text-muted-foreground', r.isTimeout && 'text-red-500')
+      valSpan.textContent = r.value != null ? ms(r.value) : r.isTimeout ? '超时' : '-'
+      valuesEl.appendChild(nameSpan)
+      valuesEl.appendChild(valSpan)
+    }
+  }
+
+  // 可见性/数据变化时若 overlay 正显示，立即重建（鼠标静止时切换 series 也能刷新）。
+  // 清空 lastTRef 强制绕过 updateOverlay 内的同点跳过逻辑，确保几何/可见性变更后内容必刷新
+  useEffect(() => {
+    if (lastClientXRef.current == null) return
+    lastTRef.current = null
+    updateOverlayRef.current?.()
+  }, [displaySeries, hidden, hovered, yDomain, xDomain, range, plotBox])
+
+  const rafRef = useRef<number | null>(null)
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    lastClientXRef.current = e.clientX
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null
+      updateOverlayRef.current?.()
+    })
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    lastClientXRef.current = null
+    lastTRef.current = null
+    if (overlayRootRef.current) overlayRootRef.current.style.display = 'none'
+    if (rafRef.current != null) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+  }, [])
+
+  useEffect(() => () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current) }, [])
+
   // 刻度固定按 3 位数字宽度（取最宽的 "888"）预留，宽度不随数据抖动：
   // LineChart 左外边距 = 8（= 列表名字列 pl-2）、YAxis width = 3 位文本宽 + 8，
   // 3 位刻度左缘即落在 8px，恰好与列表名字左缘对齐（tickSize/tickMargin 常量被消去）。
-  const chartRef = useRef<HTMLDivElement>(null)
   const [yAxisWidth, setYAxisWidth] = useState(44)
 
   useLayoutEffect(() => {
@@ -408,7 +587,12 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
   )
 
   const chartArea = (
-    <div ref={chartRef} className={cn('relative', maximized ? 'h-[33.33vh] shrink-0' : chartClass || 'h-60')}>
+    <div
+      ref={chartRef}
+      className={cn('relative', maximized ? 'h-[33.33vh] shrink-0' : chartClass || 'h-60')}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
       {empty ? (
         <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
           {loading ? '加载中…' : `暂无 ${emptyLabel} 数据`}
@@ -496,13 +680,34 @@ export function LatencyBlock({ title, rows, loading, range, onRangeChange, chart
                 />,
               ]
             })}
-            {/* Tooltip last = cursor renders on top of all lines */}
-            <Tooltip
-              content={<LatencyTooltip hidden={hidden} hovered={hovered} series={displaySeries} range={range} />}
-              cursor={<CursorDots yDomain={yDomain} series={displaySeries} hidden={hidden} hovered={hovered} />}
-            />
+            <Customized component={OffsetProbe} onOffset={handleOffset} />
           </LineChart>
         </ResponsiveContainer>
+      )}
+      {plotBox && (
+        <div ref={overlayRootRef} className="absolute inset-0 pointer-events-none" style={{ zIndex: 50, display: 'none' }}>
+          <svg className="absolute inset-0 w-full h-full">
+            <g ref={cursorGroupRef}>
+              <line x1={0} y1={plotBox.top} x2={0} y2={plotBox.top + plotBox.height} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+              <g ref={circlesRef} />
+            </g>
+          </svg>
+          <div
+            ref={tooltipBoxRef}
+            className="absolute"
+            style={{
+              top: plotBox.top,
+              background: 'hsl(var(--popover))',
+              border: '1px solid hsl(var(--border))',
+              borderRadius: 6,
+              fontSize: 11,
+              padding: '8px 10px',
+            }}
+          >
+            <div ref={timeLabelRef} className="text-muted-foreground mb-1" />
+            <div ref={valuesRef} className="grid items-center gap-x-3 gap-y-0" style={{ gridTemplateColumns: 'auto minmax(4ch, max-content)' }} />
+          </div>
+        </div>
       )}
       {loading && (
         <div className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
@@ -802,118 +1007,24 @@ function lookupSeriesValue(line: ChartSeriesPoint[], targetT: number): number | 
     if (line[i].value == null) return null
   }
 
+  // 跟随实际数据：snap 到最近的真实点，不做线性插值（插值会显示不存在的假值）
   const loPt = line[loIdx]
   const hiPt = line[hiIdx]
-  if (hiPt.t === loPt.t) return loPt.value
-  const frac = (targetT - loPt.t) / (hiPt.t - loPt.t)
-  return loPt.value! + (hiPt.value! - loPt.value!) * frac
+  const distLo = targetT - loPt.t
+  const distHi = hiPt.t - targetT
+  return distLo <= distHi ? loPt.value : hiPt.value
 }
 
-interface CursorDotsProps {
-  yDomain: [number, number]
-  series: ChartSeries[]
-  hidden: Set<string>
-  hovered: string | null
-  points?: { x: number; y: number }[]
-  payload?: { payload?: { t: number } }[]
-  top?: number
-  height?: number
+// Customized 探针：模块级稳定 identity，读取 Recharts 内部绘图区几何。
+// 必须稳定，否则每次父渲染换 identity → Customized remount → setState → 无限循环
+interface OffsetProbeProps {
+  offset?: { left: number; top: number; width: number; height: number }
+  onOffset?: (o: { left: number; top: number; width: number; height: number }) => void
+}
+const OffsetProbe = ({ offset, onOffset }: OffsetProbeProps) => {
+  useLayoutEffect(() => {
+    if (offset && onOffset) onOffset(offset)
+  }, [offset?.left, offset?.top, offset?.width, offset?.height, onOffset])
+  return null
 }
 
-function CursorDots(props: CursorDotsProps) {
-  const { yDomain, series, hidden, hovered, points: cursorPts, payload, top, height } = props
-  if (!cursorPts?.length) return null
-  const x = cursorPts[0].x
-  const label = payload?.[0]?.payload?.t
-  if (x == null || label == null) return null
-
-  const t = Number(top)
-  const h = Number(height)
-  const yMin = yDomain[0]
-  const yRange = yDomain[1] - yMin || 1
-  const toY = (v: number) => t + h * (1 - (v - yMin) / yRange)
-
-  const circles: React.ReactNode[] = []
-  for (const s of series) {
-    if (hovered ? s.name !== hovered : hidden.has(s.name)) continue
-    const value = lookupSeriesValue(s.normalLine, label)
-    if (value == null) continue
-    const cy = toY(value)
-    if (!Number.isFinite(cy)) continue
-    circles.push(
-      <circle key={s.name} cx={x} cy={cy} r={5} fill={s.color} stroke="#fff" strokeWidth={1} />,
-    )
-  }
-
-  return (
-    <g pointerEvents="none">
-      <line x1={x} y1={t} x2={x} y2={t + h} stroke="hsl(var(--border))" strokeDasharray="3 3" />
-      {circles}
-    </g>
-  )
-}
-
-interface LatencyTooltipProps {
-  active?: boolean
-  label?: number
-  hidden: Set<string>
-  hovered: string | null
-  series: ChartSeries[]
-  range: LatencyRange
-}
-
-function LatencyTooltip({ active, label, hidden, hovered, series, range }: LatencyTooltipProps) {
-  if (!active || label == null) return null
-
-  const rows: { name: string; color: string; value: number | null; isTimeout: boolean }[] = []
-  for (const s of series) {
-    if (hovered ? s.name !== hovered : hidden.has(s.name)) continue
-    const normalVal = lookupSeriesValue(s.normalLine, label)
-    if (normalVal != null) {
-      rows.push({ name: s.name, color: s.color, value: normalVal, isTimeout: false })
-    } else {
-      const timeoutVal = lookupSeriesValue(s.timeoutLine, label)
-      if (timeoutVal != null) rows.push({ name: s.name, color: s.color, value: null, isTimeout: true })
-    }
-  }
-  if (rows.length === 0) return null
-  rows.sort((a, b) => {
-    const av = a.value, bv = b.value
-    if (av == null && bv == null) return 0
-    if (av == null) return 1
-    if (bv == null) return -1
-    return av - bv
-  })
-
-  return (
-    <div
-      style={{
-        background: 'hsl(var(--popover))',
-        border: '1px solid hsl(var(--border))',
-        borderRadius: 6,
-        fontSize: 11,
-        padding: '8px 10px',
-      }}
-    >
-      <div className="text-muted-foreground mb-1">
-        {range === '7d'
-          ? `${new Date(label).getMonth() + 1}-${String(new Date(label).getDate()).padStart(2, '0')} ${new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}`
-          : new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}
-      </div>
-      {rows.map(r => (
-        <div key={r.name} className="flex items-center gap-2">
-          <span className="flex-1 truncate font-semibold" style={{ color: r.color }}>{r.name}</span>
-          <span
-            className={cn(
-              'font-mono tabular-nums',
-              r.value == null && !r.isTimeout && 'text-muted-foreground',
-              r.isTimeout && 'text-red-500',
-            )}
-          >
-            {r.value != null ? ms(r.value) : r.isTimeout ? '超时' : '-'}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
